@@ -1,116 +1,132 @@
-// stores/qrStore.ts
-import QRCode from 'qrcode'
+import axios from 'axios'
+import { ref } from 'vue'
 
-const KEY = 'qr_codes'
+const API_BASE_URL = 'http://localhost:3000/api'
 
-// Read all saved QR entries
-export function loadQRCodes() {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || '[]')
-  } catch {
-    return []
+// Configure axios instance
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Reactive state
+export const qrCodes = ref([])
+
+// Error handling helper
+const handleApiError = (error) => {
+  if (error.response) {
+    console.error('API Error Response:', error.response.data)
+    throw new Error(error.response.data.error || 'Server error occurred')
+  } else if (error.request) {
+    console.error('API No Response:', error.request)
+    throw new Error(
+      'Cannot connect to server. Please make sure the backend is running on port 3000',
+    )
+  } else {
+    console.error('API Error:', error.message)
+    throw new Error(error.message || 'An error occurred')
   }
 }
 
-// Generate QR code as data URL
-async function generateQRCode(url: string): Promise<string> {
+// ============= API FUNCTIONS =============
+
+// Load all QR codes
+export async function loadQRCodes() {
   try {
-    // Validate URL before generating QR
-    if (!isValidUrl(url)) {
-      throw new Error('Invalid URL')
-    }
-    return await QRCode.toDataURL(url, {
-      width: 200,
-      margin: 2,
-      errorCorrectionLevel: 'M',
-    })
+    const response = await api.get('/qrcodes')
+    qrCodes.value = response.data.map((item) => ({
+      id: item.id,
+      name: item.name,
+      url: item.url,
+      qrSrc: item.qr_src,
+      createdAt: new Date(item.created_at).toLocaleDateString(),
+    }))
+    return qrCodes.value
   } catch (error) {
-    console.error('QR generation failed:', error)
-    throw error
+    handleApiError(error)
   }
 }
 
-// Validate URL (http or https only)
-function isValidUrl(url: string): boolean {
+// Get single QR code by ID
+export async function getQRCodeById(id) {
   try {
-    const urlObj = new URL(url)
-    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
-  } catch {
-    return false
+    const response = await api.get(`/qrcodes/${id}`)
+    const item = response.data
+    return {
+      id: item.id,
+      name: item.name,
+      url: item.url,
+      qrSrc: item.qr_src,
+      createdAt: new Date(item.created_at).toLocaleDateString(),
+    }
+  } catch (error) {
+    handleApiError(error)
   }
-}
-
-// Validate name (min 3 chars, no blank spaces)
-function isValidName(name: string): boolean {
-  return name.trim().length >= 3 && !name.includes(' ')
 }
 
 // Save a new QR entry
-export async function saveQRCode({ name, url }: { name: string; url: string }) {
-  // Validate inputs
-  if (!isValidName(name)) {
-    throw new Error('Name must be at least 3 characters and contain no spaces')
+export async function saveQRCode({ name, url }) {
+  try {
+    const response = await api.post('/qrcodes', {
+      name: name.trim(),
+      url: url.trim(),
+    })
+    console.log('Save response:', response.data)
+    // Reload the list after save
+    await loadQRCodes()
+    return response.data
+  } catch (error) {
+    handleApiError(error)
   }
-
-  if (!isValidUrl(url)) {
-    throw new Error('URL must start with http:// or https://')
-  }
-
-  const qrSrc = await generateQRCode(url)
-  const list = loadQRCodes()
-
-  list.unshift({
-    id: Date.now(),
-    name: name.trim(),
-    url,
-    qrSrc,
-    createdAt: new Date().toLocaleDateString(),
-  })
-
-  localStorage.setItem(KEY, JSON.stringify(list))
-  return list
 }
 
-// Update name and URL for an existing QR entry
-export async function updateQRCode(id: number, updates: { name?: string; url?: string }) {
-  const list = loadQRCodes()
-  const index = list.findIndex((q) => q.id === id)
+// Update QR code - ALWAYS send both name and url
+export async function updateQRCode(id, updates) {
+  console.log('Store - Updating QR code:', { id, updates })
 
-  if (index !== -1) {
-    // Validate name if provided
-    if (updates.name !== undefined) {
-      if (!isValidName(updates.name)) {
-        throw new Error('Name must be at least 3 characters and contain no spaces')
-      }
-      list[index].name = updates.name.trim()
-    }
-
-    // Validate and update URL if provided
-    if (updates.url !== undefined) {
-      if (!isValidUrl(updates.url)) {
-        throw new Error('URL must start with http:// or https://')
-      }
-      list[index].url = updates.url
-
-      // Regenerate QR code with new URL
-      list[index].qrSrc = await generateQRCode(updates.url)
-    }
-
-    localStorage.setItem(KEY, JSON.stringify(list))
+  // Always ensure both fields are present in the payload
+  const payload = {
+    name: updates.name ? updates.name.trim() : '',
+    url: updates.url ? updates.url.trim() : '',
   }
 
-  return list
+  try {
+    console.log('Store - Sending to API:', payload)
+    const response = await api.put(`/qrcodes/${id}`, payload)
+    console.log('Store - Update response:', response.data)
+
+    // Update the local state immediately
+    const index = qrCodes.value.findIndex((qr) => qr.id === id)
+    if (index !== -1) {
+      if (payload.name) qrCodes.value[index].name = payload.name
+      if (payload.url) qrCodes.value[index].url = payload.url
+    }
+
+    return response.data
+  } catch (error) {
+    console.error('Store - Update error:', error)
+    handleApiError(error)
+  }
 }
 
 // Delete one entry by id
-export function deleteQRCode(id: number) {
-  const list = loadQRCodes().filter((q) => q.id !== id)
-  localStorage.setItem(KEY, JSON.stringify(list))
-  return list
+export async function deleteQRCode(id) {
+  try {
+    await api.delete(`/qrcodes/${id}`)
+    // Remove from local state immediately
+    const index = qrCodes.value.findIndex((qr) => qr.id === id)
+    if (index !== -1) {
+      qrCodes.value.splice(index, 1)
+    }
+    return true
+  } catch (error) {
+    handleApiError(error)
+  }
 }
 
-// Get single QR entry by id
-export function getQRCodeById(id: number) {
-  const list = loadQRCodes()
-  return list.find((q) => q.id === id)
+// Refresh the QR codes list
+export async function refreshQRCodes() {
+  return await loadQRCodes()
 }
