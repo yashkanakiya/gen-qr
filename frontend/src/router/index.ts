@@ -1,21 +1,34 @@
+// router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
-import Dashboard from '../components/Dashboard.vue'
-import CreateQR from '../components/CreateQR.vue'
+import Dashboard from '../components/Dashboard.vue' // Check path!
+import CreateQR from '../components/CreateQR.vue' // Check path!
+import EditQR from '../components/EditQR.vue' // Check path!
+
+const routes = [
+  {
+    path: '/',
+    redirect: '/dashboard', // Optional: redirect root to dashboard
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: Dashboard,
+  },
+  {
+    path: '/create-qr',
+    name: 'CreateQR',
+    component: CreateQR,
+  },
+  {
+    path: '/edit-qr/:id',
+    name: 'EditQR',
+    component: EditQR,
+  },
+]
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/',
-      name: 'dashboard',
-      component: Dashboard,
-    },
-    {
-      path: '/create-qr',
-      name: 'CreateQr',
-      component: CreateQR,
-    },
-  ],
+  history: createWebHistory(),
+  routes,
 })
 
 export default router
