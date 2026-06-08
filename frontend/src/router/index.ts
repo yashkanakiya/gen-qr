@@ -1,7 +1,7 @@
 // router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
-import Dashboard from '../components/Dashboard.vue' // Check path!
-import CreateQR from '../components/CreateQR.vue' // Check path!
+import Dashboard from '../views/Dashboard.vue' // Check path!
+import CreateQR from '../views/CreateQR.vue' // Check path!
 
 const routes = [
   {
