@@ -4,7 +4,7 @@
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div class="text-center sm:text-left">
-          <p class="text-sm text-gray-600">© 2026 Yash Kanakiya. All rights reserved.</p>
+          <p class="text-sm text-gray-600">© {{ new Date().getFullYear() }} Yash Kanakiya. All rights reserved.</p>
         </div>
 
         <div class="flex space-x-6">
@@ -44,7 +44,3 @@
     </div>
   </footer>
 </template>
-
-<script setup>
-// No logic needed for footer
-</script>

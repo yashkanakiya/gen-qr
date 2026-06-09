@@ -1,3 +1,17 @@
+<script lang="ts" setup>
+import { ref } from 'vue'
+
+const mobileMenuOpen = ref(false)
+
+const toggleMobileMenu = () => {
+  mobileMenuOpen.value = !mobileMenuOpen.value
+}
+
+const closeMobileMenu = () => {
+  mobileMenuOpen.value = false
+}
+</script>
+
 <!-- components/Header.vue -->
 <template>
   <nav class="bg-white/80 backdrop-blur-md shadow-lg sticky top-0 z-50 border-b border-gray-200/50">
@@ -90,20 +104,6 @@
     </div>
   </nav>
 </template>
-
-<script setup>
-import { ref } from 'vue'
-
-const mobileMenuOpen = ref(false)
-
-const toggleMobileMenu = () => {
-  mobileMenuOpen.value = !mobileMenuOpen.value
-}
-
-const closeMobileMenu = () => {
-  mobileMenuOpen.value = false
-}
-</script>
 
 <style scoped>
 .slide-down-enter-active,

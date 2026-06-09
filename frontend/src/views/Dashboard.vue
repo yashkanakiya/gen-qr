@@ -1,9 +1,329 @@
+<script lang="ts" setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useToast } from 'primevue/usetoast'
+import {
+  qrCodes,
+  loadQRCodes,
+  deleteQRCode as deleteQRFromStore,
+  updateQRCode as updateQRInStore,
+} from '../stores/qrStore'
+
+interface QRCode {
+  id: string
+  name: string
+  url: string
+  qrSrc?: string
+  createdAt: string
+}
+
+interface EditForm {
+  name: string
+  url: string
+}
+
+interface ValidationErrors {
+  name: string
+  url: string
+}
+
+const router = useRouter()
+const toast = useToast()
+const selectedQR = ref<QRCode | null>(null)
+const editModalVisible = ref<boolean>(false)
+const deleteModalVisible = ref<boolean>(false)
+const downloadModalVisible = ref<boolean>(false)
+const isUpdating = ref<boolean>(false)
+const isDeleting = ref<boolean>(false)
+const searchQuery = ref<string>('')
+
+const editForm = ref<EditForm>({
+  name: '',
+  url: '',
+})
+
+const validationErrors = ref<ValidationErrors>({
+  name: '',
+  url: ''
+})
+
+const validateName = (): boolean => {
+  const name = editForm.value.name
+  
+  if (!name || name.trim() === '') {
+    validationErrors.value.name = 'Name is required'
+    return false
+  }
+  
+  if (name !== name.trim()) {
+    validationErrors.value.name = 'Name should not start or end with spaces'
+    return false
+  }
+  
+  if (name.trim().length < 3) {
+    validationErrors.value.name = 'Name must be at least 3 characters'
+    return false
+  }
+  
+  const alphanumericRegex = /^[a-zA-Z0-9\s]+$/
+  if (!alphanumericRegex.test(name)) {
+    validationErrors.value.name = 'Name must contain only letters, numbers, and spaces'
+    return false
+  }
+  
+  validationErrors.value.name = ''
+  return true
+}
+
+const validateUrl = (): boolean => {
+  const url = editForm.value.url
+  
+  if (!url || url.trim() === '') {
+    validationErrors.value.url = 'URL is required'
+    return false
+  }
+  
+  if (url !== url.trim()) {
+    validationErrors.value.url = 'URL should not start or end with spaces'
+    return false
+  }
+  
+  const urlRegex = /^https?:\/\/.+/i
+  if (!urlRegex.test(url.trim())) {
+    validationErrors.value.url = 'URL must start with http:// or https://'
+    return false
+  }
+  
+  validationErrors.value.url = ''
+  return true
+}
+
+const isFormValid = computed<boolean>(() => {
+  return validationErrors.value.name === '' && 
+         validationErrors.value.url === '' && 
+         editForm.value.name.trim() !== '' && 
+         editForm.value.url.trim() !== ''
+})
+
+// Total count of all QR codes (not affected by search)
+const totalQRCodes = computed<number>(() => {
+  return (qrCodes.value as QRCode[]).length
+})
+
+// Filtered QR codes for display (affected by search)
+const filteredQRCodes = computed<QRCode[]>(() => {
+  if (!searchQuery.value.trim()) {
+    return qrCodes.value as QRCode[]
+  }
+  
+  const query = searchQuery.value.toLowerCase().trim()
+  return (qrCodes.value as QRCode[]).filter(qr => 
+    qr.name.toLowerCase().includes(query) || 
+    qr.url.toLowerCase().includes(query)
+  )
+})
+
+const lastCreatedDate = computed<string | null>(() => {
+  if ((qrCodes.value as QRCode[]).length === 0) return null
+  return (qrCodes.value as QRCode[])[0]?.createdAt
+})
+
+const getMonthlyCount = computed<number>(() => {
+  const currentMonth = new Date().getMonth()
+  const currentYear = new Date().getFullYear()
+  return (qrCodes.value as QRCode[]).filter((qr) => {
+    const qrDate = new Date(qr.createdAt)
+    return qrDate.getMonth() === currentMonth && qrDate.getFullYear() === currentYear
+  }).length
+})
+
+const getTodayCount = computed<number>(() => {
+  const today = new Date().toLocaleDateString()
+  return (qrCodes.value as QRCode[]).filter((qr) => {
+    return qr.createdAt === today
+  }).length
+})
+
+function clearSearch(): void {
+  searchQuery.value = ''
+}
+
+onMounted(async (): Promise<void> => {
+  await loadQRCodesFromAPI()
+})
+
+async function loadQRCodesFromAPI(): Promise<void> {
+  try {
+    await loadQRCodes()
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: error instanceof Error ? error.message : 'Failed to load QR codes',
+      life: 4000,
+    })
+  }
+}
+
+function openEditModal(qr: QRCode): void {
+  selectedQR.value = qr
+  editForm.value = {
+    name: qr.name,
+    url: qr.url,
+  }
+  validationErrors.value = {
+    name: '',
+    url: ''
+  }
+  editModalVisible.value = true
+}
+
+function closeEditModal(): void {
+  editModalVisible.value = false
+  editForm.value = { name: '', url: '' }
+  validationErrors.value = { name: '', url: '' }
+  selectedQR.value = null
+}
+
+function openDeleteModal(qr: QRCode): void {
+  selectedQR.value = qr
+  deleteModalVisible.value = true
+}
+
+function openDownloadModal(qr: QRCode): void {
+  selectedQR.value = qr
+  downloadModalVisible.value = true
+}
+
+async function updateQRCode(): Promise<void> {
+  const isNameValid = validateName()
+  const isUrlValid = validateUrl()
+  
+  if (!isNameValid || !isUrlValid) {
+    toast.add({
+      severity: 'error',
+      summary: 'Validation Error',
+      detail: 'Please fix the validation errors before updating',
+      life: 4000,
+    })
+    return
+  }
+  
+  const updates = {
+    name: editForm.value.name.trim(),
+    url: editForm.value.url.trim(),
+  }
+
+  isUpdating.value = true
+
+  try {
+    if (!selectedQR.value) throw new Error('No QR code selected')
+    await updateQRInStore(selectedQR.value.id, updates)
+
+    editModalVisible.value = false
+    toast.add({
+      severity: 'success',
+      summary: 'Success',
+      detail: 'QR code updated successfully',
+      life: 3000,
+    })
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: error instanceof Error ? error.message : 'Failed to update QR code',
+      life: 4000,
+    })
+  } finally {
+    isUpdating.value = false
+  }
+}
+
+async function confirmDelete(): Promise<void> {
+  isDeleting.value = true
+
+  try {
+    if (!selectedQR.value) throw new Error('No QR code selected')
+    await deleteQRFromStore(selectedQR.value.id)
+
+    deleteModalVisible.value = false
+    toast.add({
+      severity: 'success',
+      summary: 'Deleted',
+      detail: 'QR code deleted successfully',
+      life: 3000,
+    })
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: error instanceof Error ? error.message : 'Failed to delete QR code',
+      life: 4000,
+    })
+  } finally {
+    isDeleting.value = false
+  }
+}
+
+async function downloadQR(format: 'png' | 'jpg' | 'svg'): Promise<void> {
+  if (!selectedQR.value) return
+
+  const url = selectedQR.value.qrSrc
+  if (!url) {
+    toast.add({
+      severity: 'error',
+      summary: 'Download Failed',
+      detail: 'QR code source not available',
+      life: 4000,
+    })
+    return
+  }
+
+  const filename = `${selectedQR.value.name}.${format}`
+
+  try {
+    if (format === 'svg') {
+      const response = await fetch(url.replace('size=200x200', 'size=500x500&format=svg'))
+      const svgText = await response.text()
+      const blob = new Blob([svgText], { type: 'image/svg+xml' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } else {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(link.href)
+    }
+
+    downloadModalVisible.value = false
+    toast.add({
+      severity: 'success',
+      summary: 'Download Started',
+      detail: `Downloading ${filename}`,
+      life: 2000,
+    })
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Download Failed',
+      detail: 'Failed to download QR code',
+      life: 4000,
+    })
+  }
+}
+</script>
 <template>
   <div class="max-w-7xl mx-auto">
     <!-- Header -->
     <div class="mb-8">
       <h1
-        class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2"
+        class="text-3xl md:text-4xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2"
       >
         My QR Codes
       </h1>
@@ -18,7 +338,7 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-gray-500 text-sm">Total QR Codes</p>
-            <p class="text-2xl font-bold text-gray-800">{{ filteredQRCodes.length }}</p>
+            <p class="text-2xl font-bold text-gray-800">{{ totalQRCodes  }}</p>
           </div>
           <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
             <i class="pi pi-qrcode text-blue-600 text-xl"></i>
@@ -97,7 +417,7 @@
       <!-- Desktop Table View -->
       <div class="hidden md:block overflow-x-auto">
         <table class="w-full">
-          <thead class="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+          <thead class="bg-linear-to-r from-gray-50 to-gray-100 border-b border-gray-200">
             <tr>
               <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">Name</th>
               <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">QR Code</th>
@@ -227,7 +547,7 @@
         <h3 class="text-lg font-medium text-gray-900 mb-2">No QR Codes Yet</h3>
         <p class="text-gray-500 mb-6">Create your first QR code to get started</p>
         <router-link to="/create-qr">
-          <button class="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md">
+          <button class="px-6 py-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md">
             Create QR Code
           </button>
         </router-link>
@@ -291,7 +611,7 @@
           <button
             @click="updateQRCode"
             :disabled="!isFormValid || isUpdating"
-            class="flex-1 px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+            class="flex-1 px-4 py-2 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
             <i v-if="isUpdating" class="pi pi-spin pi-spinner mr-2"></i>
             Update
@@ -371,9 +691,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Toast Notifications -->
-    <Toast />
   </div>
 </template>
 
@@ -393,289 +710,3 @@
   animation: fadeIn 0.2s ease-out;
 }
 </style>
-
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import Toast from 'primevue/toast'
-import { useToast } from 'primevue/usetoast'
-import {
-  qrCodes,
-  loadQRCodes,
-  deleteQRCode as deleteQRFromStore,
-  updateQRCode as updateQRInStore,
-} from '../stores/qrStore'
-
-const router = useRouter()
-const toast = useToast()
-const selectedQR = ref(null)
-const editModalVisible = ref(false)
-const deleteModalVisible = ref(false)
-const downloadModalVisible = ref(false)
-const isUpdating = ref(false)
-const isDeleting = ref(false)
-const searchQuery = ref('')
-
-const editForm = ref({
-  name: '',
-  url: '',
-})
-
-const validationErrors = ref({
-  name: '',
-  url: ''
-})
-
-const validateName = () => {
-  const name = editForm.value.name
-  
-  if (!name || name.trim() === '') {
-    validationErrors.value.name = 'Name is required'
-    return false
-  }
-  
-  if (name !== name.trim()) {
-    validationErrors.value.name = 'Name should not start or end with spaces'
-    return false
-  }
-  
-  if (name.trim().length < 3) {
-    validationErrors.value.name = 'Name must be at least 3 characters'
-    return false
-  }
-  
-  const alphanumericRegex = /^[a-zA-Z0-9\s]+$/
-  if (!alphanumericRegex.test(name)) {
-    validationErrors.value.name = 'Name must contain only letters, numbers, and spaces'
-    return false
-  }
-  
-  validationErrors.value.name = ''
-  return true
-}
-
-const validateUrl = () => {
-  const url = editForm.value.url
-  
-  if (!url || url.trim() === '') {
-    validationErrors.value.url = 'URL is required'
-    return false
-  }
-  
-  if (url !== url.trim()) {
-    validationErrors.value.url = 'URL should not start or end with spaces'
-    return false
-  }
-  
-  const urlRegex = /^https?:\/\/.+/i
-  if (!urlRegex.test(url.trim())) {
-    validationErrors.value.url = 'URL must start with http:// or https://'
-    return false
-  }
-  
-  validationErrors.value.url = ''
-  return true
-}
-
-const isFormValid = computed(() => {
-  return validationErrors.value.name === '' && 
-         validationErrors.value.url === '' && 
-         editForm.value.name.trim() !== '' && 
-         editForm.value.url.trim() !== ''
-})
-
-const filteredQRCodes = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return qrCodes.value
-  }
-  
-  const query = searchQuery.value.toLowerCase().trim()
-  return qrCodes.value.filter(qr => 
-    qr.name.toLowerCase().includes(query) || 
-    qr.url.toLowerCase().includes(query)
-  )
-})
-
-const lastCreatedDate = computed(() => {
-  if (qrCodes.value.length === 0) return null
-  return qrCodes.value[0]?.createdAt
-})
-
-const getMonthlyCount = computed(() => {
-  const currentMonth = new Date().getMonth()
-  const currentYear = new Date().getFullYear()
-  return qrCodes.value.filter((qr) => {
-    const qrDate = new Date(qr.createdAt)
-    return qrDate.getMonth() === currentMonth && qrDate.getFullYear() === currentYear
-  }).length
-})
-
-const getTodayCount = computed(() => {
-  const today = new Date().toLocaleDateString()
-  return qrCodes.value.filter((qr) => {
-    return qr.createdAt === today
-  }).length
-})
-
-function clearSearch() {
-  searchQuery.value = ''
-}
-
-onMounted(async () => {
-  await loadQRCodesFromAPI()
-})
-
-async function loadQRCodesFromAPI() {
-  try {
-    await loadQRCodes()
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: error.message || 'Failed to load QR codes',
-      life: 4000,
-    })
-  }
-}
-
-function openEditModal(qr) {
-  selectedQR.value = qr
-  editForm.value = {
-    name: qr.name,
-    url: qr.url,
-  }
-  validationErrors.value = {
-    name: '',
-    url: ''
-  }
-  editModalVisible.value = true
-}
-
-function closeEditModal() {
-  editModalVisible.value = false
-  editForm.value = { name: '', url: '' }
-  validationErrors.value = { name: '', url: '' }
-  selectedQR.value = null
-}
-
-function openDeleteModal(qr) {
-  selectedQR.value = qr
-  deleteModalVisible.value = true
-}
-
-function openDownloadModal(qr) {
-  selectedQR.value = qr
-  downloadModalVisible.value = true
-}
-
-async function updateQRCode() {
-  const isNameValid = validateName()
-  const isUrlValid = validateUrl()
-  
-  if (!isNameValid || !isUrlValid) {
-    toast.add({
-      severity: 'error',
-      summary: 'Validation Error',
-      detail: 'Please fix the validation errors before updating',
-      life: 4000,
-    })
-    return
-  }
-  
-  const updates = {
-    name: editForm.value.name.trim(),
-    url: editForm.value.url.trim(),
-  }
-
-  isUpdating.value = true
-
-  try {
-    await updateQRInStore(selectedQR.value.id, updates)
-
-    editModalVisible.value = false
-    toast.add({
-      severity: 'success',
-      summary: 'Success',
-      detail: 'QR code updated successfully',
-      life: 3000,
-    })
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: error.message || 'Failed to update QR code',
-      life: 4000,
-    })
-  } finally {
-    isUpdating.value = false
-  }
-}
-
-async function confirmDelete() {
-  isDeleting.value = true
-
-  try {
-    await deleteQRFromStore(selectedQR.value.id)
-
-    deleteModalVisible.value = false
-    toast.add({
-      severity: 'success',
-      summary: 'Deleted',
-      detail: 'QR code deleted successfully',
-      life: 3000,
-    })
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: error.message || 'Failed to delete QR code',
-      life: 4000,
-    })
-  } finally {
-    isDeleting.value = false
-  }
-}
-
-async function downloadQR(format) {
-  if (!selectedQR.value) return
-
-  const url = selectedQR.value.qrSrc
-  const filename = `${selectedQR.value.name}.${format}`
-
-  try {
-    if (format === 'svg') {
-      const response = await fetch(url.replace('size=200x200', 'size=500x500&format=svg'))
-      const svgText = await response.text()
-      const blob = new Blob([svgText], { type: 'image/svg+xml' })
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = filename
-      link.click()
-      URL.revokeObjectURL(link.href)
-    } else {
-      const response = await fetch(url)
-      const blob = await response.blob()
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = filename
-      link.click()
-      URL.revokeObjectURL(link.href)
-    }
-
-    downloadModalVisible.value = false
-    toast.add({
-      severity: 'success',
-      summary: 'Download Started',
-      detail: `Downloading ${filename}`,
-      life: 2000,
-    })
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Download Failed',
-      detail: 'Failed to download QR code',
-      life: 4000,
-    })
-  }
-}
-</script>

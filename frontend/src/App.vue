@@ -1,6 +1,13 @@
+<script lang="ts" setup>
+import Header from './components/Header.vue'
+import Footer from './components/Footer.vue'
+import Toast from 'primevue/toast'
+</script>
+
 <!-- App.vue -->
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col">
+  <div class="min-h-screen bg-linear-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col">
+    <Toast />
     <!-- Header -->
     <Header />
 
@@ -13,8 +20,3 @@
     <Footer />
   </div>
 </template>
-
-<script setup>
-import Header from './components/Header.vue'
-import Footer from './components/Footer.vue'
-</script>
