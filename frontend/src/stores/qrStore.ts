@@ -1,8 +1,7 @@
-import axios from 'axios'
-import type { AxiosInstance, AxiosError } from 'axios'
+// stores/qrStore.ts
 import { ref, type Ref } from 'vue'
-
-const API_BASE_URL = 'http://localhost:3000/api'
+import { api } from '../services/api'  // Import shared api instance
+import type { AxiosError } from 'axios'  // Keep this for type checking
 
 // ============= TYPE DEFINITIONS =============
 
@@ -32,35 +31,15 @@ interface UpdateQRCodeData {
   url?: string
 }
 
-// Configure axios instance
-const api: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
+// Remove the local api creation - use the imported one
+// const api: AxiosInstance = axios.create({ ... })  // DELETE THIS LINE
 
 // Reactive state
 export const qrCodes: Ref<QRCodeItem[]> = ref([])
 
 // Error handling helper
 const handleApiError = (error: unknown): never => {
-  if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError<{ error?: string }>
-    
-    if (axiosError.response) {
-      console.error('API Error Response:', axiosError.response.data)
-      throw new Error(axiosError.response.data?.error || 'Server error occurred')
-    } else if (axiosError.request) {
-      console.error('API No Response:', axiosError.request)
-      throw new Error(
-        'Cannot connect to server. Please make sure the backend is running on port 3000',
-      )
-    } else {
-      console.error('API Error:', axiosError.message)
-      throw new Error(axiosError.message || 'An error occurred')
-    }
-  } else if (error instanceof Error) {
+  if (error instanceof Error) {
     console.error('Error:', error.message)
     throw new Error(error.message || 'An error occurred')
   } else {
@@ -76,7 +55,7 @@ export async function loadQRCodes(): Promise<QRCodeItem[]> {
   try {
     const response = await api.get<QRCodeApiResponse[]>('/qrcodes')
     qrCodes.value = response.data.map((item: QRCodeApiResponse) => ({
-      id: item.id,
+      id: item.id.toString(), // Convert to string if needed
       name: item.name,
       url: item.url,
       qrSrc: item.qr_src,
@@ -94,7 +73,7 @@ export async function getQRCodeById(id: string): Promise<QRCodeItem> {
     const response = await api.get<QRCodeApiResponse>(`/qrcodes/${id}`)
     const item = response.data
     return {
-      id: item.id,
+      id: item.id.toString(),
       name: item.name,
       url: item.url,
       qrSrc: item.qr_src,
