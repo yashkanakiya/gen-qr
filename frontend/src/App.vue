@@ -2,6 +2,12 @@
 import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import Toast from 'primevue/toast'
+import { onMounted } from 'vue'
+import { loadUser } from './stores/authStore'
+
+onMounted(async () => {
+  await loadUser()
+})
 </script>
 
 <!-- App.vue -->

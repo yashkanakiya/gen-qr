@@ -48,19 +48,32 @@ function allQuery(sql, params = []) {
 
 // Initialize database tables
 const initDatabase = async () => {
-  const createTableQuery = `
+  const createQRCodesTable = `
     CREATE TABLE IF NOT EXISTS qr_codes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       url TEXT NOT NULL,
       qr_src TEXT NOT NULL,
+      user_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `;
+
+  const createUsersTable = `
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `;
 
   try {
-    await runQuery(createTableQuery);
+    await runQuery(createUsersTable);
+    await runQuery(createQRCodesTable);
     console.log("✅ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);
@@ -70,33 +83,49 @@ const initDatabase = async () => {
 
 // Database operations
 const dbOperations = {
-  // Get all QR codes (latest first)
-  getAll: async () => {
-    return await allQuery("SELECT * FROM qr_codes ORDER BY created_at DESC");
-  },
-
-  // Get single QR code by ID
-  getById: async (id) => {
-    return await getQuery("SELECT * FROM qr_codes WHERE id = ?", [id]);
-  },
-
-  // Create new QR code
-  create: async (qrData) => {
-    const { name, url, qrSrc } = qrData;
-
-    // Insert the new QR code
+  // User operations
+  createUser: async (userData) => {
+    const { username, email, password } = userData;
     const result = await runQuery(
-      "INSERT INTO qr_codes (name, url, qr_src) VALUES (?, ?, ?)",
-      [name, url, qrSrc],
+      "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+      [username, email, password]
     );
-
-    // Get the last inserted ID and return the full record
-    const id = result.lastID;
-    return await dbOperations.getById(id);
+    return await dbOperations.getUserById(result.lastID);
   },
 
-  // Update QR code
-  update: async (id, updates) => {
+  getUserByEmail: async (email) => {
+    return await getQuery("SELECT * FROM users WHERE email = ?", [email]);
+  },
+
+  getUserById: async (id) => {
+    return await getQuery("SELECT id, username, email, created_at FROM users WHERE id = ?", [id]);
+  },
+
+  // QR Code operations (updated with user_id)
+  getAll: async (userId) => {
+    return await allQuery(
+      "SELECT * FROM qr_codes WHERE user_id = ? ORDER BY created_at DESC",
+      [userId]
+    );
+  },
+
+  getById: async (id, userId) => {
+    return await getQuery(
+      "SELECT * FROM qr_codes WHERE id = ? AND user_id = ?",
+      [id, userId]
+    );
+  },
+
+  create: async (qrData, userId) => {
+    const { name, url, qrSrc } = qrData;
+    const result = await runQuery(
+      "INSERT INTO qr_codes (name, url, qr_src, user_id) VALUES (?, ?, ?, ?)",
+      [name, url, qrSrc, userId]
+    );
+    return await dbOperations.getById(result.lastID, userId);
+  },
+
+  update: async (id, userId, updates) => {
     const fields = [];
     const values = [];
 
@@ -117,18 +146,18 @@ const dbOperations = {
 
     fields.push("updated_at = CURRENT_TIMESTAMP");
     values.push(id);
+    values.push(userId);
 
     await runQuery(
-      `UPDATE qr_codes SET ${fields.join(", ")} WHERE id = ?`,
-      values,
+      `UPDATE qr_codes SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`,
+      values
     );
 
-    return await dbOperations.getById(id);
+    return await dbOperations.getById(id, userId);
   },
 
-  // Delete QR code
-  delete: async (id) => {
-    await runQuery("DELETE FROM qr_codes WHERE id = ?", [id]);
+  delete: async (id, userId) => {
+    await runQuery("DELETE FROM qr_codes WHERE id = ? AND user_id = ?", [id, userId]);
     return true;
   },
 };
