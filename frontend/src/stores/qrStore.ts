@@ -1,43 +1,49 @@
 // stores/qrStore.ts
 import { ref, type Ref } from 'vue'
-import { api } from '../services/api'  // Import shared api instance
-import type { AxiosError } from 'axios'  // Keep this for type checking
-
-// ============= TYPE DEFINITIONS =============
+import { api } from '../services/api'
 
 export interface QRCodeItem {
   id: string
+  slug: string
   name: string
-  url: string
+  type: string
+  value: string
   qrSrc?: string
-  createdAt: string
+  scan_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ScanAnalytics {
+  total_scans: number
+  unique_visitors: number
+  countries: number
+  last_scan: string | null
+  scans_by_day: Array<{ date: string; count: number }>
+  recent_scans: Array<{
+    scanned_at: string
+    ip: string
+    country: string
+    device_type: string
+    browser: string
+    os: string
+  }>
 }
 
 interface QRCodeApiResponse {
   id: string
+  slug: string
   name: string
-  url: string
+  type: string
+  value: string
   qr_src?: string
+  scan_count: number
   created_at: string
+  updated_at: string
 }
 
-interface SaveQRCodeData {
-  name: string
-  url: string
-}
-
-interface UpdateQRCodeData {
-  name?: string
-  url?: string
-}
-
-// Remove the local api creation - use the imported one
-// const api: AxiosInstance = axios.create({ ... })  // DELETE THIS LINE
-
-// Reactive state
 export const qrCodes: Ref<QRCodeItem[]> = ref([])
 
-// Error handling helper
 const handleApiError = (error: unknown): never => {
   if (error instanceof Error) {
     console.error('Error:', error.message)
@@ -48,18 +54,19 @@ const handleApiError = (error: unknown): never => {
   }
 }
 
-// ============= API FUNCTIONS =============
-
-// Load all QR codes
 export async function loadQRCodes(): Promise<QRCodeItem[]> {
   try {
     const response = await api.get<QRCodeApiResponse[]>('/qrcodes')
-    qrCodes.value = response.data.map((item: QRCodeApiResponse) => ({
-      id: item.id.toString(), // Convert to string if needed
+    qrCodes.value = response.data.map((item) => ({
+      id: item.id.toString(),
+      slug: item.slug,
       name: item.name,
-      url: item.url,
+      type: item.type,
+      value: item.value,
       qrSrc: item.qr_src,
-      createdAt: new Date(item.created_at).toLocaleDateString(),
+      scan_count: item.scan_count || 0,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
     }))
     return qrCodes.value
   } catch (error) {
@@ -67,32 +74,44 @@ export async function loadQRCodes(): Promise<QRCodeItem[]> {
   }
 }
 
-// Get single QR code by ID
 export async function getQRCodeById(id: string): Promise<QRCodeItem> {
   try {
     const response = await api.get<QRCodeApiResponse>(`/qrcodes/${id}`)
     const item = response.data
     return {
       id: item.id.toString(),
+      slug: item.slug,
       name: item.name,
-      url: item.url,
+      type: item.type,
+      value: item.value,
       qrSrc: item.qr_src,
-      createdAt: new Date(item.created_at).toLocaleDateString(),
+      scan_count: item.scan_count || 0,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
     }
   } catch (error) {
     throw handleApiError(error)
   }
 }
 
-// Save a new QR entry
-export async function saveQRCode({ name, url }: SaveQRCodeData): Promise<QRCodeApiResponse> {
+export async function getQRCodeAnalytics(id: string): Promise<ScanAnalytics> {
   try {
-    const response = await api.post<QRCodeApiResponse>('/qrcodes', {
-      name: name.trim(),
-      url: url.trim(),
-    })
-    console.log('Save response:', response.data)
-    // Reload the list after save
+    const response = await api.get<ScanAnalytics>(`/qrcodes/${id}/analytics`)
+    return response.data
+  } catch (error) {
+    throw handleApiError(error)
+  }
+}
+
+export async function saveQRCode(data: { 
+  name: string; 
+  type: string; 
+  value: string;
+  wifiEncryption?: string;
+  wifiPassword?: string;
+}): Promise<QRCodeApiResponse> {
+  try {
+    const response = await api.post<QRCodeApiResponse>('/qrcodes', data)
     await loadQRCodes()
     return response.data
   } catch (error) {
@@ -100,41 +119,30 @@ export async function saveQRCode({ name, url }: SaveQRCodeData): Promise<QRCodeA
   }
 }
 
-// Update QR code - ALWAYS send both name and url
-export async function updateQRCode(id: string, updates: UpdateQRCodeData): Promise<QRCodeApiResponse> {
-  console.log('Store - Updating QR code:', { id, updates })
-
-  // Always ensure both fields are present in the payload
-  const payload: { name: string; url: string } = {
-    name: updates.name ? updates.name.trim() : '',
-    url: updates.url ? updates.url.trim() : '',
-  }
-
+export async function updateQRCode(id: string, updates: { 
+  name?: string; 
+  value?: string; 
+  type?: string;
+  wifiEncryption?: string;
+  wifiPassword?: string;
+}): Promise<QRCodeApiResponse> {
   try {
-    console.log('Store - Sending to API:', payload)
-    const response = await api.put<QRCodeApiResponse>(`/qrcodes/${id}`, payload)
-    console.log('Store - Update response:', response.data)
-
-    // Update the local state immediately
-    const index = qrCodes.value.findIndex((qr: QRCodeItem) => qr.id === id)
+    const response = await api.put<QRCodeApiResponse>(`/qrcodes/${id}`, updates)
+    const index = qrCodes.value.findIndex((qr) => qr.id === id)
     if (index !== -1) {
-      if (payload.name) qrCodes.value[index].name = payload.name
-      if (payload.url) qrCodes.value[index].url = payload.url
+      if (updates.name) qrCodes.value[index].name = updates.name
+      if (updates.value) qrCodes.value[index].value = updates.value
     }
-
     return response.data
   } catch (error) {
-    console.error('Store - Update error:', error)
     throw handleApiError(error)
   }
 }
 
-// Delete one entry by id
 export async function deleteQRCode(id: string): Promise<boolean> {
   try {
     await api.delete(`/qrcodes/${id}`)
-    // Remove from local state immediately
-    const index = qrCodes.value.findIndex((qr: QRCodeItem) => qr.id === id)
+    const index = qrCodes.value.findIndex((qr) => qr.id === id)
     if (index !== -1) {
       qrCodes.value.splice(index, 1)
     }
@@ -144,7 +152,11 @@ export async function deleteQRCode(id: string): Promise<boolean> {
   }
 }
 
-// Refresh the QR codes list
 export async function refreshQRCodes(): Promise<QRCodeItem[]> {
   return await loadQRCodes()
+}
+
+export function getRedirectUrl(slug: string): string {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  return `${baseUrl}/r/${slug}`
 }

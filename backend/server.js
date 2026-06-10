@@ -1,3 +1,4 @@
+// server.js
 import express from "express";
 import cors from "cors";
 import qrRoutes from "./routes/qrRoutes.js";
@@ -25,6 +26,8 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/qrcodes", qrRoutes);
 
+// The redirect route is now inside qrRoutes.js as /r/:slug
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -45,6 +48,7 @@ const startServer = async () => {
       console.log(`API endpoints:`);
       console.log(`  - Auth: http://localhost:${PORT}/api/auth`);
       console.log(`  - QR Codes: http://localhost:${PORT}/api/qrcodes`);
+      console.log(`  - Redirect: http://localhost:${PORT}/r/:slug`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);

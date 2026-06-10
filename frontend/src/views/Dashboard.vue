@@ -1,693 +1,411 @@
 <script lang="ts" setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
-import {
-  qrCodes,
-  loadQRCodes,
-  deleteQRCode as deleteQRFromStore,
-  updateQRCode as updateQRInStore,
-} from '../stores/qrStore'
-
-interface QRCode {
-  id: string
-  name: string
-  url: string
-  qrSrc?: string
-  createdAt: string
-}
-
-interface EditForm {
-  name: string
-  url: string
-}
-
-interface ValidationErrors {
-  name: string
-  url: string
-}
+import { qrCodes, loadQRCodes, deleteQRCode, getQRCodeAnalytics, getRedirectUrl, type QRCodeItem, type ScanAnalytics } from '../stores/qrStore'
 
 const router = useRouter()
 const toast = useToast()
-const selectedQR = ref<QRCode | null>(null)
-const editModalVisible = ref<boolean>(false)
-const deleteModalVisible = ref<boolean>(false)
-const downloadModalVisible = ref<boolean>(false)
-const isUpdating = ref<boolean>(false)
-const isDeleting = ref<boolean>(false)
-const searchQuery = ref<string>('')
+const isLoading = ref(true)
+const deleteModalVisible = ref(false)
+const analyticsModalVisible = ref(false)
+const selectedQR = ref<QRCodeItem | null>(null)
+const selectedAnalytics = ref<ScanAnalytics | null>(null)
+const analyticsLoading = ref(false)
 
-const editForm = ref<EditForm>({
-  name: '',
-  url: '',
-})
-
-const validationErrors = ref<ValidationErrors>({
-  name: '',
-  url: ''
-})
-
-const validateName = (): boolean => {
-  const name = editForm.value.name
-  
-  if (!name || name.trim() === '') {
-    validationErrors.value.name = 'Name is required'
-    return false
-  }
-  
-  if (name !== name.trim()) {
-    validationErrors.value.name = 'Name should not start or end with spaces'
-    return false
-  }
-  
-  if (name.trim().length < 3) {
-    validationErrors.value.name = 'Name must be at least 3 characters'
-    return false
-  }
-  
-  const alphanumericRegex = /^[a-zA-Z0-9\s]+$/
-  if (!alphanumericRegex.test(name)) {
-    validationErrors.value.name = 'Name must contain only letters, numbers, and spaces'
-    return false
-  }
-  
-  validationErrors.value.name = ''
-  return true
+const qrTypesMap: Record<string, { label: string; icon: string; color: string }> = {
+  url: { label: 'URL', icon: 'pi pi-globe', color: 'blue' },
+  text: { label: 'Text', icon: 'pi pi-file', color: 'gray' },
+  email: { label: 'Email', icon: 'pi pi-envelope', color: 'green' },
+  phone: { label: 'Phone', icon: 'pi pi-phone', color: 'purple' },
+  sms: { label: 'SMS', icon: 'pi pi-comment', color: 'orange' },
+  wifi: { label: 'WiFi', icon: 'pi pi-wifi', color: 'indigo' },
+  location: { label: 'Location', icon: 'pi pi-map-marker', color: 'red' }
 }
 
-const validateUrl = (): boolean => {
-  const url = editForm.value.url
-  
-  if (!url || url.trim() === '') {
-    validationErrors.value.url = 'URL is required'
-    return false
+// Add this function
+const getIconColorClass = (color: string | undefined) => {
+  switch (color) {
+    case 'blue': return 'text-blue-500'
+    case 'gray': return 'text-gray-500'
+    case 'green': return 'text-green-500'
+    case 'purple': return 'text-purple-500'
+    case 'orange': return 'text-orange-500'
+    case 'indigo': return 'text-indigo-500'
+    case 'red': return 'text-red-500'
+    default: return 'text-gray-500'
   }
-  
-  if (url !== url.trim()) {
-    validationErrors.value.url = 'URL should not start or end with spaces'
-    return false
-  }
-  
-  const urlRegex = /^https?:\/\/.+/i
-  if (!urlRegex.test(url.trim())) {
-    validationErrors.value.url = 'URL must start with http:// or https://'
-    return false
-  }
-  
-  validationErrors.value.url = ''
-  return true
 }
 
-const isFormValid = computed<boolean>(() => {
-  return validationErrors.value.name === '' && 
-         validationErrors.value.url === '' && 
-         editForm.value.name.trim() !== '' && 
-         editForm.value.url.trim() !== ''
-})
-
-// Total count of all QR codes (not affected by search)
-const totalQRCodes = computed<number>(() => {
-  return (qrCodes.value as QRCode[]).length
-})
-
-// Filtered QR codes for display (affected by search)
-const filteredQRCodes = computed<QRCode[]>(() => {
-  if (!searchQuery.value.trim()) {
-    return qrCodes.value as QRCode[]
-  }
-  
-  const query = searchQuery.value.toLowerCase().trim()
-  return (qrCodes.value as QRCode[]).filter(qr => 
-    qr.name.toLowerCase().includes(query) || 
-    qr.url.toLowerCase().includes(query)
-  )
-})
-
-const lastCreatedDate = computed<string | null>(() => {
-  if ((qrCodes.value as QRCode[]).length === 0) return null
-  return (qrCodes.value as QRCode[])[0]?.createdAt
-})
-
-const getMonthlyCount = computed<number>(() => {
-  const currentMonth = new Date().getMonth()
-  const currentYear = new Date().getFullYear()
-  return (qrCodes.value as QRCode[]).filter((qr) => {
-    const qrDate = new Date(qr.createdAt)
-    return qrDate.getMonth() === currentMonth && qrDate.getFullYear() === currentYear
-  }).length
-})
-
-const getTodayCount = computed<number>(() => {
-  const today = new Date().toLocaleDateString()
-  return (qrCodes.value as QRCode[]).filter((qr) => {
-    return qr.createdAt === today
-  }).length
-})
-
-function clearSearch(): void {
-  searchQuery.value = ''
+const formatDate = (dateStr: string) => {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
 }
 
-onMounted(async (): Promise<void> => {
-  await loadQRCodesFromAPI()
-})
+const formatLastScan = (dateStr: string | null) => {
+  if (!dateStr) return 'Never'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins} min ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+}
 
-async function loadQRCodesFromAPI(): Promise<void> {
+const copyToClipboard = async (text: string) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.add({
+      severity: 'success',
+      summary: 'Copied!',
+      detail: 'Link copied to clipboard',
+      life: 2000
+    })
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Failed',
+      detail: 'Could not copy to clipboard',
+      life: 2000
+    })
+  }
+}
+
+const getQRCodeLink = (qr: QRCodeItem) => {
+  return getRedirectUrl(qr.slug)
+}
+
+const loadData = async () => {
+  isLoading.value = true
   try {
     await loadQRCodes()
   } catch (error) {
     toast.add({
       severity: 'error',
       summary: 'Error',
-      detail: error instanceof Error ? error.message : 'Failed to load QR codes',
-      life: 4000,
+      detail: 'Failed to load QR codes',
+      life: 3000
     })
+  } finally {
+    isLoading.value = false
   }
 }
 
-function openEditModal(qr: QRCode): void {
-  selectedQR.value = qr
-  editForm.value = {
-    name: qr.name,
-    url: qr.url,
-  }
-  validationErrors.value = {
-    name: '',
-    url: ''
-  }
-  editModalVisible.value = true
-}
-
-function closeEditModal(): void {
-  editModalVisible.value = false
-  editForm.value = { name: '', url: '' }
-  validationErrors.value = { name: '', url: '' }
-  selectedQR.value = null
-}
-
-function openDeleteModal(qr: QRCode): void {
+const confirmDelete = (qr: QRCodeItem) => {
   selectedQR.value = qr
   deleteModalVisible.value = true
 }
 
-function openDownloadModal(qr: QRCode): void {
-  selectedQR.value = qr
-  downloadModalVisible.value = true
-}
-
-async function updateQRCode(): Promise<void> {
-  const isNameValid = validateName()
-  const isUrlValid = validateUrl()
+const handleDelete = async () => {
+  if (!selectedQR.value) return
   
-  if (!isNameValid || !isUrlValid) {
-    toast.add({
-      severity: 'error',
-      summary: 'Validation Error',
-      detail: 'Please fix the validation errors before updating',
-      life: 4000,
-    })
-    return
-  }
-  
-  const updates = {
-    name: editForm.value.name.trim(),
-    url: editForm.value.url.trim(),
-  }
-
-  isUpdating.value = true
-
   try {
-    if (!selectedQR.value) throw new Error('No QR code selected')
-    await updateQRInStore(selectedQR.value.id, updates)
-
-    editModalVisible.value = false
-    toast.add({
-      severity: 'success',
-      summary: 'Success',
-      detail: 'QR code updated successfully',
-      life: 3000,
-    })
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: error instanceof Error ? error.message : 'Failed to update QR code',
-      life: 4000,
-    })
-  } finally {
-    isUpdating.value = false
-  }
-}
-
-async function confirmDelete(): Promise<void> {
-  isDeleting.value = true
-
-  try {
-    if (!selectedQR.value) throw new Error('No QR code selected')
-    await deleteQRFromStore(selectedQR.value.id)
-
-    deleteModalVisible.value = false
+    await deleteQRCode(selectedQR.value.id)
     toast.add({
       severity: 'success',
       summary: 'Deleted',
-      detail: 'QR code deleted successfully',
-      life: 3000,
+      detail: 'QR code removed successfully',
+      life: 3000
     })
+    deleteModalVisible.value = false
+    selectedQR.value = null
   } catch (error) {
     toast.add({
       severity: 'error',
       summary: 'Error',
-      detail: error instanceof Error ? error.message : 'Failed to delete QR code',
-      life: 4000,
+      detail: 'Failed to delete QR code',
+      life: 3000
     })
-  } finally {
-    isDeleting.value = false
   }
 }
 
-async function downloadQR(format: 'png' | 'jpg' | 'svg'): Promise<void> {
-  if (!selectedQR.value) return
-
-  const url = selectedQR.value.qrSrc
-  if (!url) {
-    toast.add({
-      severity: 'error',
-      summary: 'Download Failed',
-      detail: 'QR code source not available',
-      life: 4000,
-    })
-    return
-  }
-
-  const filename = `${selectedQR.value.name}.${format}`
-
+const viewAnalytics = async (qr: QRCodeItem) => {
+  selectedQR.value = qr
+  analyticsLoading.value = true
+  analyticsModalVisible.value = true
+  
   try {
-    if (format === 'svg') {
-      const response = await fetch(url.replace('size=200x200', 'size=500x500&format=svg'))
-      const svgText = await response.text()
-      const blob = new Blob([svgText], { type: 'image/svg+xml' })
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = filename
-      link.click()
-      URL.revokeObjectURL(link.href)
-    } else {
-      const response = await fetch(url)
-      const blob = await response.blob()
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = filename
-      link.click()
-      URL.revokeObjectURL(link.href)
-    }
-
-    downloadModalVisible.value = false
-    toast.add({
-      severity: 'success',
-      summary: 'Download Started',
-      detail: `Downloading ${filename}`,
-      life: 2000,
-    })
+    selectedAnalytics.value = await getQRCodeAnalytics(qr.id)
   } catch (error) {
     toast.add({
       severity: 'error',
-      summary: 'Download Failed',
-      detail: 'Failed to download QR code',
-      life: 4000,
+      summary: 'Error',
+      detail: 'Failed to load analytics',
+      life: 3000
     })
+    analyticsModalVisible.value = false
+  } finally {
+    analyticsLoading.value = false
   }
 }
+
+const editQR = (qr: QRCodeItem) => {
+  router.push(`/edit-qr/${qr.id}`)
+}
+
+const createNew = () => {
+  router.push('/create-qr')
+}
+
+const getChartData = computed(() => {
+  if (!selectedAnalytics.value?.scans_by_day) return []
+  return selectedAnalytics.value.scans_by_day.slice().reverse()
+})
+
+const getMaxScans = computed(() => {
+  const scans = getChartData.value.map(d => d.count)
+  return Math.max(...scans, 1)
+})
+
+onMounted(() => {
+  loadData()
+})
 </script>
+
 <template>
-  <div class="max-w-7xl mx-auto">
-    <!-- Header -->
-    <div class="mb-8">
-      <h1
-        class="text-3xl md:text-4xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2"
-      >
-        My QR Codes
-      </h1>
-      <p class="text-gray-600">Manage and organize all your QR codes</p>
-    </div>
-
-    <!-- Stats Cards with Colorful Icons -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-      <div
-        class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-gray-500 text-sm">Total QR Codes</p>
-            <p class="text-2xl font-bold text-gray-800">{{ totalQRCodes  }}</p>
-          </div>
-          <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-            <i class="pi pi-qrcode text-blue-600 text-xl"></i>
-          </div>
+  <div class="min-h-screen">
+    <div class="max-w-6xl mx-auto px-4">
+      <!-- Header -->
+      <div class="mb-8">
+        <div>
+          <h1 class="text-2xl md:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            My QR Codes
+          </h1>
+          <p class="text-gray-600 mt-1">Manage and track your QR codes</p>
         </div>
       </div>
 
-      <div
-        class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-gray-500 text-sm">Created This Month</p>
-            <p class="text-2xl font-bold text-gray-800">{{ getMonthlyCount }}</p>
-          </div>
-          <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-            <i class="pi pi-calendar text-green-600 text-xl"></i>
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-gray-500 text-sm">Last Created</p>
-            <p class="text-2xl font-bold text-gray-800">{{ lastCreatedDate || 'None' }}</p>
-          </div>
-          <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-            <i class="pi pi-clock text-purple-600 text-xl"></i>
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-gray-500 text-sm">Created Today</p>
-            <p class="text-2xl font-bold text-gray-800">{{ getTodayCount }}</p>
-          </div>
-          <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-            <i class="pi pi-sun text-orange-600 text-xl"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Search Bar -->
-    <div class="mb-6">
-      <div class="relative bg-white">
-        <i class="pi pi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm z-10"></i>
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search by name or URL..."
-          class="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-        />
-        <button
-          v-if="searchQuery"
-          @click="clearSearch"
-          class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <i class="pi pi-times"></i>
-        </button>
-      </div>
-      <p v-if="searchQuery" class="text-sm text-gray-500 mt-2">
-        Found {{ filteredQRCodes.length }} result(s) for "{{ searchQuery }}"
-      </p>
-    </div>
-
-    <!-- QR Codes Table/Cards -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <!-- Desktop Table View -->
-      <div class="hidden md:block overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-linear-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-            <tr>
-              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">Name</th>
-              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">QR Code</th>
-              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">URL</th>
-              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
-              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <tr v-for="qr in filteredQRCodes" :key="qr.id" class="hover:bg-gray-50 transition-colors">
-              <td class="px-6 py-4">
-                <div class="font-medium text-gray-900">{{ qr.name }}</div>
-              </td>
-              <td class="px-6 py-4">
-                <img
-                  :src="qr.qrSrc"
-                  :alt="qr.name"
-                  class="w-12 h-12 object-contain rounded-lg border border-gray-200"
-                />
-              </td>
-              <td class="px-6 py-4">
-                <a
-                  :href="qr.url"
-                  target="_blank"
-                  class="text-blue-600 hover:text-blue-800 text-sm truncate block max-w-xs"
-                >
-                  {{ qr.url }}
-                </a>
-              </td>
-              <td class="px-6 py-4 text-sm text-gray-600">{{ qr.createdAt }}</td>
-              <td class="px-6 py-4">
-                <div class="flex space-x-2">
-                  <button
-                    @click="openEditModal(qr)"
-                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <i class="pi pi-pencil text-sm"></i>
-                  </button>
-                  <button
-                    @click="openDeleteModal(qr)"
-                    class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete"
-                  >
-                    <i class="pi pi-trash text-sm"></i>
-                  </button>
-                  <button
-                    @click="openDownloadModal(qr)"
-                    class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Download"
-                  >
-                    <i class="pi pi-download text-sm"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="filteredQRCodes.length === 0 && qrCodes.length > 0">
-              <td colspan="5" class="px-6 py-12 text-center">
-                <i class="pi pi-search text-4xl text-gray-300 mb-2 block"></i>
-                <p class="text-gray-500">No QR codes match your search</p>
-                <button
-                  @click="clearSearch"
-                  class="mt-2 text-blue-600 hover:text-blue-700 text-sm"
-                >
-                  Clear search
-                </button>
-               </td>
-             </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Mobile Cards View -->
-      <div class="md:hidden divide-y divide-gray-100">
-        <div v-for="qr in filteredQRCodes" :key="qr.id" class="p-4 hover:bg-gray-50 transition-colors">
-          <div class="flex items-start space-x-4">
-            <img
-              :src="qr.qrSrc"
-              :alt="qr.name"
-              class="w-16 h-16 object-contain rounded-lg border border-gray-200"
-            />
-            <div class="flex-1 min-w-0">
-              <h3 class="font-semibold text-gray-900 truncate">{{ qr.name }}</h3>
-              <p class="text-xs text-gray-500 mt-1">{{ qr.createdAt }}</p>
-              <a :href="qr.url" target="_blank" class="text-blue-600 text-xs truncate block mt-1">
-                {{ qr.url }}
-              </a>
-            </div>
-            <div class="flex flex-col space-y-2">
-              <button
-                @click="openEditModal(qr)"
-                class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              >
-                <i class="pi pi-pencil text-sm"></i>
-              </button>
-              <button
-                @click="openDeleteModal(qr)"
-                class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <i class="pi pi-trash text-sm"></i>
-              </button>
-              <button
-                @click="openDownloadModal(qr)"
-                class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <i class="pi pi-download text-sm"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div v-if="filteredQRCodes.length === 0 && qrCodes.length > 0" class="text-center py-12">
-          <i class="pi pi-search text-4xl text-gray-300 mb-2 block"></i>
-          <p class="text-gray-500">No QR codes match your search</p>
-          <button
-            @click="clearSearch"
-            class="mt-2 text-blue-600 hover:text-blue-700 text-sm"
-          >
-            Clear search
-          </button>
-        </div>
+      <!-- Loading State -->
+      <div v-if="isLoading" class="flex justify-center items-center py-20">
+        <i class="pi pi-spin pi-spinner text-4xl text-blue-500"></i>
       </div>
 
       <!-- Empty State -->
-      <div v-if="qrCodes.length === 0" class="text-center py-12">
-        <i class="pi pi-qrcode text-6xl text-gray-300 mb-4"></i>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">No QR Codes Yet</h3>
-        <p class="text-gray-500 mb-6">Create your first QR code to get started</p>
-        <router-link to="/create-qr">
-          <button class="px-6 py-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md">
-            Create QR Code
-          </button>
-        </router-link>
+      <div v-else-if="qrCodes.length === 0" class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i class="pi pi-qrcode text-3xl text-gray-400"></i>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">No QR Codes Yet</h3>
+        <p class="text-gray-600 mb-6">Create your first QR code to get started</p>
+        <button
+          @click="createNew"
+          class="px-4 py-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all"
+        >
+          Create QR Code
+        </button>
+      </div>
+
+      <!-- QR Codes Grid -->
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div
+          v-for="qr in qrCodes"
+          :key="qr.id"
+          class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
+        >
+          <!-- QR Preview -->
+          <div class="bg-gray-50 p-4 flex justify-center border-b border-gray-100">
+            <img :src="qr.qrSrc" :alt="qr.name" class="w-32 h-32 object-contain" />
+          </div>
+          
+          <!-- Content -->
+          <div class="p-4">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <i :class="[qrTypesMap[qr.type]?.icon || 'pi pi-qrcode', getIconColorClass(qrTypesMap[qr.type]?.color)]" class="text-sm"></i>
+                  <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
+                    {{ qrTypesMap[qr.type]?.label || qr.type }}
+                  </span>
+                </div>
+                <h3 class="font-semibold text-gray-900">{{ qr.name }}</h3>
+                <p class="text-xs text-gray-500 mt-1">{{ formatDate(qr.created_at) }}</p>
+              </div>
+              <button
+                @click="editQR(qr)"
+                class="text-gray-400 hover:text-blue-500 transition-colors"
+              >
+                <i class="pi pi-pencil"></i>
+              </button>
+            </div>
+            
+            <!-- Stats -->
+            <div class="mt-3 pt-3 border-t border-gray-100">
+              <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center gap-2">
+                  <i class="pi pi-chart-line text-gray-400"></i>
+                  <span class="text-gray-600">{{ qr.scan_count || 0 }} scans</span>
+                </div>
+                <button
+                  @click="viewAnalytics(qr)"
+                  class="text-blue-500 hover:text-blue-600 text-sm font-medium"
+                >
+                  View Stats →
+                </button>
+              </div>
+            </div>
+            
+            <!-- Link -->
+            <div class="mt-2 flex items-center gap-2">
+              <input
+                :value="getQRCodeLink(qr)"
+                type="text"
+                readonly
+                class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1 text-gray-600"
+              />
+              <button
+                @click="copyToClipboard(getQRCodeLink(qr))"
+                class="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                title="Copy link"
+              >
+                <i class="pi pi-copy"></i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Actions -->
+          <div class="flex border-t border-gray-100 divide-x divide-gray-100">
+            <button
+              @click="viewAnalytics(qr)"
+              class="flex-1 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              <i class="pi pi-chart-line mr-1"></i> Analytics
+            </button>
+            <button
+              @click="editQR(qr)"
+              class="flex-1 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              <i class="pi pi-pencil mr-1"></i> Edit
+            </button>
+            <button
+              @click="confirmDelete(qr)"
+              class="flex-1 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
+            >
+              <i class="pi pi-trash mr-1"></i> Delete
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Edit Modal with Blur Background -->
-    <div v-if="editModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="closeEditModal">
-      <div class="bg-white rounded-xl max-w-md w-full shadow-2xl relative animate-fade-in">
-        <div class="p-6 border-b border-gray-100">
-          <h3 class="text-xl font-semibold text-gray-900">Edit QR Code</h3>
-          <p class="text-sm text-gray-500 mt-1">{{ selectedQR?.name }}</p>
-        </div>
-        
-        <div class="p-6 space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Name</label>
-            <input
-              v-model="editForm.name"
-              type="text"
-              placeholder="Enter QR code name"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              :class="{ 'border-red-500': validationErrors.name }"
-              @input="validateName"
-            />
-            <p v-if="validationErrors.name" class="text-red-500 text-xs mt-1">{{ validationErrors.name }}</p>
-            <p class="text-gray-400 text-xs mt-1">Minimum 3 characters (letters, numbers, and spaces only)</p>
-          </div>
-
-          <div class="text-center">
-            <img
-              :src="selectedQR?.qrSrc"
-              :alt="selectedQR?.name"
-              class="w-32 h-32 mx-auto object-contain"
-            />
-            <p class="text-xs text-gray-500 mt-2">QR code cannot be edited</p>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">URL</label>
-            <input
-              v-model="editForm.url"
-              type="url"
-              placeholder="Enter new URL"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              :class="{ 'border-red-500': validationErrors.url }"
-              @input="validateUrl"
-            />
-            <p v-if="validationErrors.url" class="text-red-500 text-xs mt-1">{{ validationErrors.url }}</p>
-            <p class="text-gray-400 text-xs mt-1">Must start with http:// or https://</p>
-          </div>
-        </div>
-
-        <div class="p-6 border-t border-gray-100 flex gap-3">
-          <button
-            @click="closeEditModal"
-            class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            @click="updateQRCode"
-            :disabled="!isFormValid || isUpdating"
-            class="flex-1 px-4 py-2 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-          >
-            <i v-if="isUpdating" class="pi pi-spin pi-spinner mr-2"></i>
-            Update
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete Confirmation Modal with Blur Background -->
+    <!-- Delete Confirmation Modal -->
     <div v-if="deleteModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="deleteModalVisible = false">
-      <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl relative animate-fade-in">
+      <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl animate-fade-in">
         <div class="text-center p-6">
           <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <i class="pi pi-exclamation-triangle text-red-600 text-2xl"></i>
           </div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">Confirm Deletion</h3>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Delete QR Code?</h3>
           <p class="text-gray-600">
             Are you sure you want to delete "{{ selectedQR?.name }}"? This action cannot be undone.
           </p>
         </div>
-        <div class="flex gap-3 p-6 border-t border-gray-100">
-          <button
-            @click="deleteModalVisible = false"
-            class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium"
-          >
+        <div class="flex gap-3 p-4 border-t border-gray-100">
+          <button @click="deleteModalVisible = false" class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium">
             Cancel
           </button>
-          <button
-            @click="confirmDelete"
-            :disabled="isDeleting"
-            class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium disabled:opacity-50"
-          >
-            <i v-if="isDeleting" class="pi pi-spin pi-spinner mr-2"></i>
+          <button @click="handleDelete" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium">
             Delete
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Download Modal with Blur Background -->
-    <div v-if="downloadModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="downloadModalVisible = false">
-      <div class="bg-white rounded-xl max-w-md w-full shadow-2xl relative animate-fade-in">
-        <div class="p-6 border-b border-gray-100">
-          <h3 class="text-xl font-semibold text-gray-900">Download QR Code</h3>
+    <!-- Analytics Modal -->
+    <div v-if="analyticsModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="analyticsModalVisible = false">
+      <div class="bg-white rounded-xl max-w-2xl w-full shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">Analytics: {{ selectedQR?.name }}</h3>
+            <p class="text-sm text-gray-500">Scan statistics and insights</p>
+          </div>
+          <button @click="analyticsModalVisible = false" class="text-gray-400 hover:text-gray-600">
+            <i class="pi pi-times text-xl"></i>
+          </button>
         </div>
         
-        <div class="p-6 space-y-4">
-          <div class="text-center">
-            <img
-              :src="selectedQR?.qrSrc"
-              :alt="selectedQR?.name"
-              class="w-48 h-48 mx-auto object-contain border rounded-lg p-4"
-            />
-            <p class="font-semibold text-gray-900 mt-3">{{ selectedQR?.name }}</p>
-          </div>
-
-          <div class="grid grid-cols-3 gap-3">
-            <button @click="downloadQR('png')" class="px-4 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium">
-              PNG
-            </button>
-            <button @click="downloadQR('jpg')" class="px-4 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium">
-              JPG
-            </button>
-            <button @click="downloadQR('svg')" class="px-4 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium">
-              SVG
-            </button>
-          </div>
+        <div v-if="analyticsLoading" class="flex justify-center items-center py-20">
+          <i class="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
         </div>
-
-        <div class="p-6 border-t border-gray-100">
-          <button
-            @click="downloadModalVisible = false"
-            class="w-full px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium"
-          >
-            Close
-          </button>
+        
+        <div v-else-if="selectedAnalytics" class="p-6">
+          <!-- Stats Cards -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-blue-50 rounded-lg p-4 text-center">
+              <i class="pi pi-eye text-blue-500 text-xl mb-2 block"></i>
+              <div class="text-2xl font-bold text-blue-700">{{ selectedAnalytics.total_scans }}</div>
+              <div class="text-xs text-blue-600">Total Scans</div>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4 text-center">
+              <i class="pi pi-users text-green-500 text-xl mb-2 block"></i>
+              <div class="text-2xl font-bold text-green-700">{{ selectedAnalytics.unique_visitors }}</div>
+              <div class="text-xs text-green-600">Unique Visitors</div>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4 text-center">
+              <i class="pi pi-globe text-purple-500 text-xl mb-2 block"></i>
+              <div class="text-2xl font-bold text-purple-700">{{ selectedAnalytics.countries }}</div>
+              <div class="text-xs text-purple-600">Countries</div>
+            </div>
+            <div class="bg-orange-50 rounded-lg p-4 text-center">
+              <i class="pi pi-clock text-orange-500 text-xl mb-2 block"></i>
+              <div class="text-sm font-semibold text-orange-700">{{ formatLastScan(selectedAnalytics.last_scan) }}</div>
+              <div class="text-xs text-orange-600">Last Scan</div>
+            </div>
+          </div>
+          
+          <!-- Scans Over Time Chart -->
+          <div v-if="selectedAnalytics.scans_by_day && selectedAnalytics.scans_by_day.length > 0" class="mb-6">
+            <h4 class="font-semibold text-gray-700 mb-3">Scans Over Time</h4>
+            <div class="bg-gray-50 rounded-lg p-4">
+              <div class="flex items-end gap-2 h-32">
+                <div
+                  v-for="day in getChartData.slice(-7)"
+                  :key="day.date"
+                  class="flex-1 flex flex-col items-center"
+                >
+                  <div
+                    class="w-full bg-blue-500 rounded-t transition-all hover:bg-blue-600"
+                    :style="{ height: `${(day.count / getMaxScans) * 100}%`, minHeight: '4px' }"
+                  ></div>
+                  <span class="text-xs text-gray-500 mt-1">{{ new Date(day.date).getDate() }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Recent Scans -->
+          <div v-if="selectedAnalytics.recent_scans && selectedAnalytics.recent_scans.length > 0">
+            <h4 class="font-semibold text-gray-700 mb-3">Recent Scans</h4>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+              <div
+                v-for="scan in selectedAnalytics.recent_scans.slice(0, 20)"
+                :key="scan.scanned_at"
+                class="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm"
+              >
+                <div class="flex items-center gap-3">
+                  <i :class="scan.device_type === 'Mobile' ? 'pi pi-mobile' : 'pi pi-desktop'"></i>
+                  <div>
+                    <p class="font-medium text-gray-700">{{ scan.country || 'Unknown' }}</p>
+                    <p class="text-xs text-gray-500">{{ scan.device_type }} • {{ scan.browser }}</p>
+                  </div>
+                </div>
+                <span class="text-xs text-gray-500">{{ formatLastScan(scan.scanned_at) }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div v-else class="text-center py-8 text-gray-500">
+            <i class="pi pi-chart-line text-4xl mb-2 block"></i>
+            <p>No scan data available yet</p>
+            <p class="text-sm">Share your QR code to start collecting analytics</p>
+          </div>
         </div>
       </div>
     </div>

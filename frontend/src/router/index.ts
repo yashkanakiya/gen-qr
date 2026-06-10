@@ -1,3 +1,4 @@
+// router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
 import { isAuthenticated, isAuthLoading, loadUser } from '../stores/authStore'
 
@@ -32,14 +33,19 @@ const router = createRouter({
       component: () => import('../views/CreateQR.vue'),
       meta: { requiresAuth: true }
     },
+    {
+      path: '/edit-qr/:id',
+      name: 'editQr',
+      component: () => import('../views/EditQR.vue'),
+      meta: { requiresAuth: true }
+    },
   ]
 })
 
-// Navigation guard - updated to use async/await and return values instead of next()
+// Navigation guard
 router.beforeEach(async (to, from) => {
   const requiresAuth = to.meta.requiresAuth !== false
   
-  // Wait for auth to be initialized
   if (isAuthLoading.value) {
     await new Promise(resolve => {
       const checkInterval = setInterval(() => {
