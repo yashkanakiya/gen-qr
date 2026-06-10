@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { qrCodes, loadQRCodes, deleteQRCode, getQRCodeAnalytics, getRedirectUrl, type QRCodeItem, type ScanAnalytics } from '../stores/qrStore'
@@ -12,6 +12,7 @@ const analyticsModalVisible = ref(false)
 const selectedQR = ref<QRCodeItem | null>(null)
 const selectedAnalytics = ref<ScanAnalytics | null>(null)
 const analyticsLoading = ref(false)
+let refreshInterval: NodeJS.Timeout | null = null
 
 const qrTypesMap: Record<string, { label: string; icon: string; color: string }> = {
   url: { label: 'URL', icon: 'pi pi-globe', color: 'blue' },
@@ -23,7 +24,6 @@ const qrTypesMap: Record<string, { label: string; icon: string; color: string }>
   location: { label: 'Location', icon: 'pi pi-map-marker', color: 'red' }
 }
 
-// Add this function
 const getIconColorClass = (color: string | undefined) => {
   switch (color) {
     case 'blue': return 'text-blue-500'
@@ -42,6 +42,16 @@ const formatDate = (dateStr: string) => {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
+  })
+}
+
+const formatDateTime = (dateStr: string) => {
+  return new Date(dateStr).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
   })
 }
 
@@ -146,6 +156,42 @@ const viewAnalytics = async (qr: QRCodeItem) => {
     analyticsLoading.value = false
   }
 }
+
+const refreshAnalytics = async () => {
+  if (!selectedQR.value) return
+  
+  try {
+    selectedAnalytics.value = await getQRCodeAnalytics(selectedQR.value.id)
+    toast.add({
+      severity: 'success',
+      summary: 'Refreshed',
+      detail: 'Analytics data updated',
+      life: 2000
+    })
+  } catch (error) {
+    console.error('Refresh error:', error)
+  }
+}
+
+// Auto-refresh every 5 seconds when modal is open
+watch(analyticsModalVisible, (isVisible) => {
+  if (isVisible) {
+    refreshInterval = setInterval(() => {
+      if (selectedQR.value && analyticsModalVisible.value) {
+        getQRCodeAnalytics(selectedQR.value.id).then(data => {
+          selectedAnalytics.value = data
+        }).catch(error => {
+          console.error('Auto-refresh error:', error)
+        })
+      }
+    }, 5000)
+  } else {
+    if (refreshInterval) {
+      clearInterval(refreshInterval)
+      refreshInterval = null
+    }
+  }
+})
 
 const editQR = (qr: QRCodeItem) => {
   router.push(`/edit-qr/${qr.id}`)
@@ -320,15 +366,24 @@ onMounted(() => {
 
     <!-- Analytics Modal -->
     <div v-if="analyticsModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="analyticsModalVisible = false">
-      <div class="bg-white rounded-xl max-w-2xl w-full shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-xl max-w-4xl w-full shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
           <div>
             <h3 class="text-lg font-semibold text-gray-900">Analytics: {{ selectedQR?.name }}</h3>
-            <p class="text-sm text-gray-500">Scan statistics and insights</p>
+            <p class="text-sm text-gray-500">Scan statistics and insights (auto-refreshes every 5s)</p>
           </div>
-          <button @click="analyticsModalVisible = false" class="text-gray-400 hover:text-gray-600">
-            <i class="pi pi-times text-xl"></i>
-          </button>
+          <div class="flex gap-2">
+            <button 
+              @click="refreshAnalytics" 
+              class="text-blue-500 hover:text-blue-600 transition-colors px-2 py-1 rounded hover:bg-blue-50"
+              title="Refresh now"
+            >
+              <i class="pi pi-refresh"></i>
+            </button>
+            <button @click="analyticsModalVisible = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+              <i class="pi pi-times text-xl"></i>
+            </button>
+          </div>
         </div>
         
         <div v-if="analyticsLoading" class="flex justify-center items-center py-20">
@@ -380,23 +435,32 @@ onMounted(() => {
             </div>
           </div>
           
-          <!-- Recent Scans -->
+          <!-- Recent Scans with Device Info -->
           <div v-if="selectedAnalytics.recent_scans && selectedAnalytics.recent_scans.length > 0">
             <h4 class="font-semibold text-gray-700 mb-3">Recent Scans</h4>
-            <div class="space-y-2 max-h-64 overflow-y-auto">
+            <div class="space-y-2 max-h-96 overflow-y-auto">
               <div
-                v-for="scan in selectedAnalytics.recent_scans.slice(0, 20)"
+                v-for="scan in selectedAnalytics.recent_scans"
                 :key="scan.scanned_at"
-                class="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm"
+                class="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm hover:bg-gray-100 transition-colors"
               >
-                <div class="flex items-center gap-3">
-                  <i :class="scan.device_type === 'Mobile' ? 'pi pi-mobile' : 'pi pi-desktop'"></i>
-                  <div>
-                    <p class="font-medium text-gray-700">{{ scan.country || 'Unknown' }}</p>
-                    <p class="text-xs text-gray-500">{{ scan.device_type }} • {{ scan.browser }}</p>
+                <div class="flex items-center gap-3 flex-1">
+                  <i :class="scan.device_type === 'Mobile' ? 'pi pi-mobile' : (scan.device_type === 'Tablet' ? 'pi pi-tablet' : 'pi pi-desktop')" 
+                     class="text-gray-500"></i>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <p class="font-medium text-gray-700">{{ scan.country || 'Unknown' }}</p>
+                      <span class="text-xs text-gray-400">•</span>
+                      <p class="text-xs text-gray-500">{{ formatDateTime(scan.scanned_at) }}</p>
+                    </div>
+                    <div class="flex gap-2 mt-1">
+                      <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">{{ scan.device_type || 'Unknown' }}</span>
+                      <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">{{ scan.browser || 'Unknown' }}</span>
+                      <span class="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded">{{ scan.os || 'Unknown' }}</span>
+                    </div>
                   </div>
                 </div>
-                <span class="text-xs text-gray-500">{{ formatLastScan(scan.scanned_at) }}</span>
+                <i class="pi pi-info-circle text-gray-400" title="IP: {{ scan.ip }}"></i>
               </div>
             </div>
           </div>

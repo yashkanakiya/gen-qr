@@ -251,30 +251,29 @@ const dbOperations = {
   // Analytics operations
 addScanAnalytics: async (qrId, req) => {
   try {
-    // Better IP detection
-    const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
+    // Simple IP detection
+    const ip = req.headers['x-forwarded-for'] || 
                req.socket?.remoteAddress || 
                req.connection?.remoteAddress || 
-               req.ip || 
-               '127.0.0.1';
+               'unknown';
     
     const userAgent = req.headers['user-agent'] || '';
-    const { deviceType, browser, os } = parseUserAgent(userAgent);
-    const country = getCountryFromIP(ip);
-    const referer = req.headers.referer || req.headers.referrer || '';
     
-    console.log('Recording analytics for QR:', qrId, { ip, deviceType, browser, os, country });
+    console.log(`📊 Recording analytics for QR ${qrId} from IP ${ip}`);
     
-    await runQuery(
-      `INSERT INTO scan_analytics (qr_id, ip, user_agent, country, device_type, browser, os, referer)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [qrId, ip, userAgent, country, deviceType, browser, os, referer]
+    // Simple insert without complex parsing first
+    const result = await runQuery(
+      `INSERT INTO scan_analytics (qr_id, ip, user_agent, scanned_at) 
+       VALUES (?, ?, ?, datetime('now'))`,
+      [qrId, ip, userAgent]
     );
     
-    console.log('Analytics recorded successfully');
+    console.log(`✅ Analytics recorded successfully`);
+    return result;
   } catch (error) {
-    console.error('Failed to record analytics:', error);
-    // Don't throw - we don't want to break the redirect if analytics fails
+    console.error("❌ Failed to record analytics:", error);
+    // Don't throw - we don't want to break the redirect
+    return null;
   }
 },
   getAnalyticsByQRId: async (qrId, userId) => {
