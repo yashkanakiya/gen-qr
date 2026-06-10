@@ -78,7 +78,8 @@ export async function login(data: LoginData): Promise<void> {
     currentUser.value = user
     isAuthenticated.value = true
   } catch (error) {
-    handleApiError(error)
+    // Re-throw the error so it can be handled in the component
+    throw error
   }
 }
 
@@ -92,7 +93,8 @@ export async function signup(data: SignupData): Promise<void> {
     currentUser.value = user
     isAuthenticated.value = true
   } catch (error) {
-    handleApiError(error)
+    // Re-throw the error so it can be handled in the component
+    throw error
   }
 }
 

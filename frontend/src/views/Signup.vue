@@ -173,6 +173,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { signup } from '../stores/authStore'
+import axios from 'axios'
 
 const router = useRouter()
 const toast = useToast()
@@ -242,10 +243,26 @@ async function handleSignup() {
     })
     router.push('/dashboard')
   } catch (error: any) {
+    // Properly extract error message from backend
+    let errorMessage = 'Failed to create account'
+    
+    if (axios.isAxiosError(error)) {
+      // Handle axios error
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
     toast.add({
       severity: 'error',
       summary: 'Signup Failed',
-      detail: error.message || 'Failed to create account',
+      detail: errorMessage,
       life: 4000
     })
   } finally {
