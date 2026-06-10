@@ -1,13 +1,17 @@
 import express from "express";
 import cors from "cors";
 import qrRoutes from "./routes/qrRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 import { initDatabase } from "./database/database.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -18,6 +22,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/qrcodes", qrRoutes);
 
 // Error handling middleware
@@ -37,9 +42,9 @@ const startServer = async () => {
     await initDatabase();
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      console.log(
-        `API endpoints available at http://localhost:${PORT}/api/qrcodes`,
-      );
+      console.log(`API endpoints:`);
+      console.log(`  - Auth: http://localhost:${PORT}/api/auth`);
+      console.log(`  - QR Codes: http://localhost:${PORT}/api/qrcodes`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
