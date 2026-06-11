@@ -118,8 +118,11 @@ export async function updateQRCode(id: string, updates: UpdateQRCodeData): Promi
     // Update the local state immediately
     const index = qrCodes.value.findIndex((qr: QRCodeItem) => qr.id === id)
     if (index !== -1) {
-      if (payload.name) qrCodes.value[index].name = payload.name
-      if (payload.url) qrCodes.value[index].url = payload.url
+      const existing = qrCodes.value[index]
+      if (existing) {
+        if (payload.name) existing.name = payload.name
+        if (payload.url) existing.url = payload.url
+      }
     }
 
     return response.data
