@@ -124,8 +124,9 @@ const filteredQRCodes = computed<QRCode[]>(() => {
 })
 
 const lastCreatedDate = computed<string | null>(() => {
-  if ((qrCodes.value as QRCode[]).length === 0) return null
-  return (qrCodes.value as QRCode[])[0]?.createdAt
+  const firstQRCode = (qrCodes.value as QRCode[])[0]
+  if (!firstQRCode) return null
+  return firstQRCode.createdAt ?? null
 })
 
 const getMonthlyCount = computed<number>(() => {
