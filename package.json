@@ -7,11 +7,10 @@
     "doc": "docs"
   },
   "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
     "backend": "cd backend && nodemon server.js",
     "frontend": "cd frontend && npm run dev",
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "install": "npm install --build-from-source sqlite3"
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
   },
   "repository": {
     "type": "git",
