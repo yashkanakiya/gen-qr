@@ -1,51 +1,22 @@
 // database/database.js
-import sqlite3 from "sqlite3";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
+import pkg from 'pg';
+const { Pool } = pkg;
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Create database connection
-const dbPath = join(__dirname, "../qr_codes.db");
-const db = new sqlite3.Database(dbPath);
-
-// Helper function to run queries with promises
-function runQuery(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ lastID: this.lastID, changes: this.changes });
-      }
-    });
-  });
-}
-
-function getQuery(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, result) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
-}
-
-function allQuery(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
-}
+// PostgreSQL connection pool
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'yourpassword',
+  database: process.env.DB_NAME || 'qr_scanner',
+  max: 20,
+  idleTimeoutMillis: 30000,
+});
 
 // Helper to generate unique slug
 const generateSlug = () => {
@@ -53,90 +24,53 @@ const generateSlug = () => {
          Date.now().toString(36);
 };
 
-// Helper to parse user agent
-const parseUserAgent = (userAgent) => {
-  const ua = userAgent || '';
-  let deviceType = 'Unknown';
-  let browser = 'Unknown';
-  let os = 'Unknown';
-
-  if (ua.includes('Mobile') || ua.includes('Android') || ua.includes('iPhone')) {
-    deviceType = 'Mobile';
-  } else if (ua.includes('Tablet') || ua.includes('iPad')) {
-    deviceType = 'Tablet';
-  } else {
-    deviceType = 'Desktop';
-  }
-
-  if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
-  else if (ua.includes('Firefox')) browser = 'Firefox';
-  else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
-  else if (ua.includes('Edge')) browser = 'Edge';
-
-  if (ua.includes('Windows')) os = 'Windows';
-  else if (ua.includes('Mac')) os = 'MacOS';
-  else if (ua.includes('Linux')) os = 'Linux';
-  else if (ua.includes('Android')) os = 'Android';
-  else if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
-
-  return { deviceType, browser, os };
-};
-
-// Get country from IP (simplified)
-const getCountryFromIP = (ip) => {
-  if (ip === '::1' || ip === '127.0.0.1') return 'Localhost';
-  return 'Unknown';
-};
-
 // Initialize database tables
 const initDatabase = async () => {
   const createUsersTable = `
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
       email TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;
 
   const createQRCodesTable = `
     CREATE TABLE IF NOT EXISTS qr_codes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       slug TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       type TEXT NOT NULL DEFAULT 'url',
       value TEXT NOT NULL,
       qr_src TEXT NOT NULL,
-      user_id INTEGER,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       scan_count INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;
 
   const createScanAnalyticsTable = `
     CREATE TABLE IF NOT EXISTS scan_analytics (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      qr_id INTEGER NOT NULL,
-      scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      id SERIAL PRIMARY KEY,
+      qr_id INTEGER REFERENCES qr_codes(id) ON DELETE CASCADE,
+      scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ip TEXT,
       user_agent TEXT,
       country TEXT,
       device_type TEXT,
       browser TEXT,
       os TEXT,
-      referer TEXT,
-      FOREIGN KEY (qr_id) REFERENCES qr_codes (id) ON DELETE CASCADE
+      referer TEXT
     )
   `;
 
   try {
-    await runQuery(createUsersTable);
-    await runQuery(createQRCodesTable);
-    await runQuery(createScanAnalyticsTable);
-    console.log("✅ Database initialized successfully");
+    await pool.query(createUsersTable);
+    await pool.query(createQRCodesTable);
+    await pool.query(createScanAnalyticsTable);
+    console.log("✅ PostgreSQL database initialized");
   } catch (error) {
     console.error("Database initialization error:", error);
     throw error;
@@ -144,90 +78,103 @@ const initDatabase = async () => {
 };
 
 const dbOperations = {
-  // User operations
+  // ----- Users -----
   createUser: async (userData) => {
     const { username, email, password } = userData;
-    const result = await runQuery(
-      "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+    const result = await pool.query(
+      `INSERT INTO users (username, email, password) 
+       VALUES ($1, $2, $3) RETURNING id, username, email, created_at`,
       [username, email, password]
     );
-    return await dbOperations.getUserById(result.lastID);
+    return result.rows[0];
   },
 
   getUserByEmail: async (email) => {
-    return await getQuery("SELECT * FROM users WHERE email = ?", [email]);
+    const result = await pool.query(
+      `SELECT * FROM users WHERE email = $1`,
+      [email]
+    );
+    return result.rows[0];
   },
 
   getUserById: async (id) => {
-    return await getQuery("SELECT id, username, email, created_at FROM users WHERE id = ?", [id]);
+    const result = await pool.query(
+      `SELECT id, username, email, created_at FROM users WHERE id = $1`,
+      [id]
+    );
+    return result.rows[0];
   },
 
-  // QR Code operations
+  // ----- QR Codes -----
   getAll: async (userId) => {
-    return await allQuery(
-      `SELECT id, slug, name, type, value, qr_src, scan_count, 
-              created_at, updated_at 
-       FROM qr_codes WHERE user_id = ? ORDER BY created_at DESC`,
+    const result = await pool.query(
+      `SELECT id, slug, name, type, value, qr_src, scan_count, created_at, updated_at 
+       FROM qr_codes WHERE user_id = $1 ORDER BY created_at DESC`,
       [userId]
     );
+    return result.rows;
   },
 
   getById: async (id, userId) => {
-    return await getQuery(
-      `SELECT id, slug, name, type, value, qr_src, scan_count,
-              created_at, updated_at 
-       FROM qr_codes WHERE id = ? AND user_id = ?`,
+    const result = await pool.query(
+      `SELECT id, slug, name, type, value, qr_src, scan_count, created_at, updated_at 
+       FROM qr_codes WHERE id = $1 AND user_id = $2`,
       [id, userId]
     );
+    return result.rows[0];
   },
 
   getBySlug: async (slug) => {
-    return await getQuery(
+    const result = await pool.query(
       `SELECT id, slug, name, type, value, scan_count 
-       FROM qr_codes WHERE slug = ?`,
+       FROM qr_codes WHERE slug = $1`,
       [slug]
     );
+    return result.rows[0];
   },
 
   create: async (qrData, userId) => {
     const { name, type, value, qrSrc } = qrData;
     const slug = generateSlug();
-    const result = await runQuery(
-      "INSERT INTO qr_codes (slug, name, type, value, qr_src, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+    const result = await pool.query(
+      `INSERT INTO qr_codes (slug, name, type, value, qr_src, user_id) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING id, slug, name, type, value, qr_src, scan_count, created_at, updated_at`,
       [slug, name, type || 'url', value, qrSrc, userId]
     );
-    return await dbOperations.getById(result.lastID, userId);
+    return result.rows[0];
   },
 
   update: async (id, userId, updates) => {
     const fields = [];
     const values = [];
+    let paramIndex = 1;
 
     if (updates.name) {
-      fields.push("name = ?");
+      fields.push(`name = $${paramIndex++}`);
       values.push(updates.name);
     }
     if (updates.value) {
-      fields.push("value = ?");
+      fields.push(`value = $${paramIndex++}`);
       values.push(updates.value);
     }
     if (updates.type) {
-      fields.push("type = ?");
+      fields.push(`type = $${paramIndex++}`);
       values.push(updates.type);
     }
     if (updates.qrSrc) {
-      fields.push("qr_src = ?");
+      fields.push(`qr_src = $${paramIndex++}`);
       values.push(updates.qrSrc);
     }
 
     if (fields.length === 0) return null;
 
-    fields.push("updated_at = CURRENT_TIMESTAMP");
-    values.push(id);
-    values.push(userId);
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id, userId);
 
-    await runQuery(
-      `UPDATE qr_codes SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`,
+    await pool.query(
+      `UPDATE qr_codes SET ${fields.join(", ")} 
+       WHERE id = $${paramIndex++} AND user_id = $${paramIndex}`,
       values
     );
 
@@ -235,89 +182,82 @@ const dbOperations = {
   },
 
   delete: async (id, userId) => {
-    // First delete analytics
-    await runQuery("DELETE FROM scan_analytics WHERE qr_id = ?", [id]);
-    await runQuery("DELETE FROM qr_codes WHERE id = ? AND user_id = ?", [id, userId]);
+    // Delete analytics first (cascade will handle it, but explicit is fine)
+    await pool.query(`DELETE FROM scan_analytics WHERE qr_id = $1`, [id]);
+    await pool.query(`DELETE FROM qr_codes WHERE id = $1 AND user_id = $2`, [id, userId]);
     return true;
   },
 
   incrementScanCount: async (id) => {
-    await runQuery(
-      "UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = ?",
+    await pool.query(
+      `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
       [id]
     );
   },
 
-  // Analytics operations
-addScanAnalytics: async (qrId, req) => {
-  try {
-    // Simple IP detection
-    const ip = req.headers['x-forwarded-for'] || 
-               req.socket?.remoteAddress || 
-               req.connection?.remoteAddress || 
-               'unknown';
-    
-    const userAgent = req.headers['user-agent'] || '';
-    
-    console.log(`📊 Recording analytics for QR ${qrId} from IP ${ip}`);
-    
-    // Simple insert without complex parsing first
-    const result = await runQuery(
-      `INSERT INTO scan_analytics (qr_id, ip, user_agent, scanned_at) 
-       VALUES (?, ?, ?, datetime('now'))`,
-      [qrId, ip, userAgent]
-    );
-    
-    console.log(`✅ Analytics recorded successfully`);
-    return result;
-  } catch (error) {
-    console.error("❌ Failed to record analytics:", error);
-    // Don't throw - we don't want to break the redirect
-    return null;
-  }
-},
+  // ----- Analytics -----
+  addScanAnalytics: async (qrId, req) => {
+    try {
+      const ip = req.headers['x-forwarded-for'] || 
+                 req.socket?.remoteAddress || 
+                 req.connection?.remoteAddress || 
+                 'unknown';
+      const userAgent = req.headers['user-agent'] || '';
+
+      const result = await pool.query(
+        `INSERT INTO scan_analytics (qr_id, ip, user_agent, scanned_at) 
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING id`,
+        [qrId, ip, userAgent]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error("❌ Failed to record analytics:", error);
+      return null;
+    }
+  },
+
   getAnalyticsByQRId: async (qrId, userId) => {
-    // First verify ownership
     const qr = await dbOperations.getById(qrId, userId);
     if (!qr) return null;
 
-    const scans = await allQuery(
+    const scans = await pool.query(
       `SELECT scanned_at, ip, country, device_type, browser, os, referer 
-       FROM scan_analytics WHERE qr_id = ? ORDER BY scanned_at DESC`,
+       FROM scan_analytics WHERE qr_id = $1 ORDER BY scanned_at DESC`,
       [qrId]
     );
 
-    const stats = await getQuery(
+    const stats = await pool.query(
       `SELECT 
          COUNT(*) as total_scans,
          COUNT(DISTINCT ip) as unique_visitors,
          COUNT(DISTINCT country) as countries
-       FROM scan_analytics WHERE qr_id = ?`,
+       FROM scan_analytics WHERE qr_id = $1`,
       [qrId]
     );
 
-    const lastScan = await getQuery(
-      `SELECT scanned_at FROM scan_analytics WHERE qr_id = ? 
+    const lastScan = await pool.query(
+      `SELECT scanned_at FROM scan_analytics WHERE qr_id = $1 
        ORDER BY scanned_at DESC LIMIT 1`,
       [qrId]
     );
 
-    const scansByDay = await allQuery(
+    const scansByDay = await pool.query(
       `SELECT DATE(scanned_at) as date, COUNT(*) as count 
-       FROM scan_analytics WHERE qr_id = ? 
+       FROM scan_analytics WHERE qr_id = $1 
        GROUP BY DATE(scanned_at) ORDER BY date DESC LIMIT 30`,
       [qrId]
     );
 
+    const s = stats.rows[0] || { total_scans: 0, unique_visitors: 0, countries: 0 };
     return {
-      total_scans: stats?.total_scans || 0,
-      unique_visitors: stats?.unique_visitors || 0,
-      countries: stats?.countries || 0,
-      last_scan: lastScan?.scanned_at || null,
-      scans_by_day: scansByDay,
-      recent_scans: scans.slice(0, 50)
+      total_scans: parseInt(s.total_scans) || 0,
+      unique_visitors: parseInt(s.unique_visitors) || 0,
+      countries: parseInt(s.countries) || 0,
+      last_scan: lastScan.rows[0]?.scanned_at || null,
+      scans_by_day: scansByDay.rows,
+      recent_scans: scans.rows.slice(0, 50)
     };
   }
 };
 
-export { db, initDatabase, dbOperations };
+export { pool as db, initDatabase, dbOperations };

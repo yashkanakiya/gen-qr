@@ -1,10 +1,12 @@
 // server.js
+import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import qrRoutes from "./routes/qrRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import { initDatabase } from "./database/database.js";
 import { dbOperations } from "./database/database.js";
+import { db } from "./database/database.js";
 import { generateQRContent } from "./utils/qrContentGenerator.js";
 
 const app = express();
@@ -99,43 +101,32 @@ app.get("/r/:slug", async (req, res) => {
     
     // Record analytics with full data
     try {
-      const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
-                 req.socket?.remoteAddress || 
-                 req.connection?.remoteAddress || 
-                 'unknown';
-      
-      const userAgent = req.headers['user-agent'] || '';
-      const referer = req.headers.referer || req.headers.referrer || '';
-      
-      // Parse user agent for device info
-      const { deviceType, browser, os } = parseUserAgent(userAgent);
-      const country = getCountryFromIP(ip);
-      
-      const { db } = await import("./database/database.js");
-      
-      // Insert with all data
-      db.run(
-        `INSERT INTO scan_analytics (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-        [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer],
-        (err) => {
-          if (err) {
-            console.error("Insert error:", err);
-          } else {
-            console.log(`✅ Scan recorded - Device: ${deviceType}, Browser: ${browser}, OS: ${os}, Country: ${country}`);
-          }
-        }
-      );
-      
-      // Update scan count
-      db.run(
-        "UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = ?",
-        [qrCode.id]
-      );
-      
-    } catch (analyticsError) {
-      console.error("Analytics error:", analyticsError);
-    }
+  // ... after finding qrCode
+  const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
+             req.socket?.remoteAddress || 
+             req.connection?.remoteAddress || 
+             'unknown';
+  const userAgent = req.headers['user-agent'] || '';
+  const referer = req.headers.referer || req.headers.referrer || '';
+  const { deviceType, browser, os } = parseUserAgent(userAgent);
+  const country = getCountryFromIP(ip);
+
+  await db.query(
+    `INSERT INTO scan_analytics 
+     (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
+    [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer]
+  );
+
+  await db.query(
+    `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
+    [qrCode.id]
+  );
+  
+  console.log(`✅ Scan recorded - Device: ${deviceType}, Browser: ${browser}, OS: ${os}, Country: ${country}`);
+} catch (analyticsError) {
+  console.error("Analytics error:", analyticsError);
+}
     
     // Generate content and redirect
     const content = generateQRContent(qrCode.type, qrCode.value);
