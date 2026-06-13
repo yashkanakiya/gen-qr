@@ -168,7 +168,7 @@ const validateFormValue = (): boolean => {
 const isFormValid = computed<boolean>(() => {
   const hasValue = getCurrentValue().trim() !== '' || 
     (form.type === 'wifi' && form.wifiSSID.trim() !== '') ||
-    (form.type === 'location' && form.locationLat && form.locationLng)
+    (form.type === 'location' && Boolean(form.locationLat && form.locationLng))
   
   return validationErrors.value.name === '' && 
          validationErrors.value.value === '' && 

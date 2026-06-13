@@ -125,27 +125,27 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
       break
     case 'email':
       const emailMatch = qr.value.match(/mailto:([^?]+)/)
-      if (emailMatch) form.emailTo = emailMatch[1]
+      if (emailMatch) form.emailTo = emailMatch[1] ?? '';
       const subjectMatch = qr.value.match(/subject=([^&]+)/)
-      if (subjectMatch) form.emailSubject = decodeURIComponent(subjectMatch[1])
+      if (subjectMatch) form.emailSubject = decodeURIComponent(subjectMatch[1] ?? '');
       const bodyMatch = qr.value.match(/body=([^&]+)/)
-      if (bodyMatch) form.emailBody = decodeURIComponent(bodyMatch[1])
+      if (bodyMatch) form.emailBody = decodeURIComponent(bodyMatch[1] ?? '');
       break
     case 'phone':
       form.phoneNumber = qr.value.replace('tel:', '')
       break
     case 'sms':
       const smsParts = qr.value.replace('smsto:', '').split(':')
-      form.smsNumber = smsParts[0]
+      form.smsNumber = smsParts[0] ?? ''
       if (smsParts[1]) form.smsMessage = decodeURIComponent(smsParts[1])
       break
     case 'wifi':
       const ssidMatch = qr.value.match(/S:([^;]+)/)
-      if (ssidMatch) form.wifiSSID = ssidMatch[1]
+      if (ssidMatch) form.wifiSSID = ssidMatch[1] ?? '';
       const encMatch = qr.value.match(/T:([^;]+)/)
-      if (encMatch) form.wifiEncryption = encMatch[1]
+      if (encMatch) form.wifiEncryption = encMatch[1] ?? '';
       const passMatch = qr.value.match(/P:([^;]+)/)
-      if (passMatch) form.wifiPassword = passMatch[1]
+      if (passMatch) form.wifiPassword = passMatch[1] ?? '';
       break
     case 'location':
       const locationValue = qr.value.replace('geo:', '')
@@ -229,7 +229,7 @@ const validateFormValue = (): boolean => {
 const isFormValid = computed<boolean>(() => {
   const hasValue = getCurrentValue().trim() !== '' || 
     (form.type === 'wifi' && form.wifiSSID.trim() !== '') ||
-    (form.type === 'location' && form.locationLat && form.locationLng)
+    (form.type === 'location' && !!form.locationLat && !!form.locationLng)
   
   return validationErrors.value.name === '' && 
          validationErrors.value.value === '' && 
