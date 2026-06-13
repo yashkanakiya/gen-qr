@@ -35,6 +35,7 @@ const toast = useToast()
 const saveModalVisible = ref<boolean>(false)
 const isLoading = ref<boolean>(false)
 const activeTab = ref<string>('url')
+const qrGenerated = ref<boolean>(false)          // NEW: prevent re-generation
 
 const validationErrors = ref<ValidationErrors>({
   name: '',
@@ -175,11 +176,13 @@ const isFormValid = computed<boolean>(() => {
          hasValue
 })
 
-watch([() => form.type, () => form.urlValue, () => form.textValue, 
+// Reset qrGenerated flag when any input changes
+watch([() => form.name, () => form.type, () => form.urlValue, () => form.textValue,
         () => form.emailTo, () => form.emailSubject, () => form.emailBody,
         () => form.phoneNumber, () => form.smsNumber, () => form.smsMessage,
         () => form.wifiSSID, () => form.wifiEncryption, () => form.wifiPassword,
         () => form.locationLat, () => form.locationLng], () => {
+  qrGenerated.value = false
   previewContent.value = getFullQRContent()
   if (getCurrentValue()) validateFormValue()
 }, { deep: true })
@@ -199,6 +202,7 @@ async function generateQR(): Promise<void> {
       color: { dark: '#000000', light: '#FFFFFF' }
     })
     qrSrc.value = qrDataURL
+    qrGenerated.value = true
     toast.add({ severity: 'success', summary: 'QR Generated', detail: 'QR code generated successfully', life: 3000 })
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Generation Failed', detail: 'Failed to generate QR code', life: 3000 })
@@ -212,7 +216,11 @@ async function saveToDashboard(): Promise<void> {
   
   isLoading.value = true
   try {
-    const saveData: any = { name: form.name.trim(), type: form.type, value: getCurrentValue().trim() }
+    const saveData: any = { 
+      name: form.name.trim(), 
+      type: form.type, 
+      value: getFullQRContent()      // FIXED: store full content
+    }
     if (form.type === 'wifi') {
       saveData.wifiEncryption = form.wifiEncryption
       saveData.wifiPassword = form.wifiPassword
@@ -278,6 +286,7 @@ function resetForm(): void {
   selectedSize.value = 500
   validationErrors.value = { name: '', value: '' }
   activeTab.value = 'url'
+  qrGenerated.value = false
 }
 
 function setType(type: string): void {
@@ -285,6 +294,7 @@ function setType(type: string): void {
   activeTab.value = type
   qrSrc.value = ''
   validationErrors.value.value = ''
+  qrGenerated.value = false
 }
 </script>
 
@@ -492,7 +502,12 @@ function setType(type: string): void {
           </div>
 
           <!-- Generate Button -->
-          <button @click="generateQR" :disabled="!isFormValid || isLoading" class="w-full py-3 text-base font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]" :class="!isFormValid || isLoading ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'">
+          <button 
+            @click="generateQR" 
+            :disabled="!isFormValid || isLoading || qrGenerated" 
+            class="w-full py-3 text-base font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]" 
+            :class="!isFormValid || isLoading || qrGenerated ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'"
+          >
             <i v-if="isLoading" class="pi pi-spin pi-spinner mr-2"></i>
             Generate QR Code
           </button>

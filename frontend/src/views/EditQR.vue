@@ -83,53 +83,6 @@ const getCurrentValue = (): string => {
   }
 }
 
-const setFormValueFromQR = (qr: QRCodeItem) => {
-  form.name = qr.name
-  form.type = qr.type
-  activeTab.value = qr.type
-  
-  switch (qr.type) {
-    case 'url':
-      form.urlValue = qr.value
-      break
-    case 'text':
-      form.textValue = qr.value
-      break
-    case 'email':
-      // Parse email: mailto:email@example.com?subject=Hello&body=Message
-      const emailMatch = qr.value.match(/mailto:([^?]+)/)
-      if (emailMatch) form.emailTo = emailMatch[1]
-      const subjectMatch = qr.value.match(/subject=([^&]+)/)
-      if (subjectMatch) form.emailSubject = decodeURIComponent(subjectMatch[1])
-      const bodyMatch = qr.value.match(/body=([^&]+)/)
-      if (bodyMatch) form.emailBody = decodeURIComponent(bodyMatch[1])
-      break
-    case 'phone':
-      form.phoneNumber = qr.value.replace('tel:', '')
-      break
-    case 'sms':
-      const smsParts = qr.value.replace('smsto:', '').split(':')
-      form.smsNumber = smsParts[0]
-      if (smsParts[1]) form.smsMessage = decodeURIComponent(smsParts[1])
-      break
-    case 'wifi':
-      // Parse WiFi: WIFI:T:WPA;S:SSID;P:password;;
-      const ssidMatch = qr.value.match(/S:([^;]+)/)
-      if (ssidMatch) form.wifiSSID = ssidMatch[1]
-      const encMatch = qr.value.match(/T:([^;]+)/)
-      if (encMatch) form.wifiEncryption = encMatch[1]
-      const passMatch = qr.value.match(/P:([^;]+)/)
-      if (passMatch) form.wifiPassword = passMatch[1]
-      break
-    case 'location':
-      const locationValue = qr.value.replace('geo:', '')
-      const [lat, lng] = locationValue.split(',')
-      form.locationLat = lat?.trim() || ''
-      form.locationLng = lng?.trim() || ''
-      break
-  }
-}
-
 const getEmailContent = (): string => {
   let content = `mailto:${form.emailTo}`
   const params = []
@@ -155,6 +108,51 @@ const getFullQRContent = (): string => {
     case 'wifi': return generateQRContent('wifi', form.wifiSSID, { encryption: form.wifiEncryption, password: form.wifiPassword })
     case 'location': return form.locationLat && form.locationLng ? generateQRContent('location', `${form.locationLat},${form.locationLng}`) : ''
     default: return ''
+  }
+}
+
+const setFormValueFromQR = (qr: QRCodeItem) => {
+  form.name = qr.name
+  form.type = qr.type
+  activeTab.value = qr.type
+  
+  switch (qr.type) {
+    case 'url':
+      form.urlValue = qr.value
+      break
+    case 'text':
+      form.textValue = qr.value
+      break
+    case 'email':
+      const emailMatch = qr.value.match(/mailto:([^?]+)/)
+      if (emailMatch) form.emailTo = emailMatch[1]
+      const subjectMatch = qr.value.match(/subject=([^&]+)/)
+      if (subjectMatch) form.emailSubject = decodeURIComponent(subjectMatch[1])
+      const bodyMatch = qr.value.match(/body=([^&]+)/)
+      if (bodyMatch) form.emailBody = decodeURIComponent(bodyMatch[1])
+      break
+    case 'phone':
+      form.phoneNumber = qr.value.replace('tel:', '')
+      break
+    case 'sms':
+      const smsParts = qr.value.replace('smsto:', '').split(':')
+      form.smsNumber = smsParts[0]
+      if (smsParts[1]) form.smsMessage = decodeURIComponent(smsParts[1])
+      break
+    case 'wifi':
+      const ssidMatch = qr.value.match(/S:([^;]+)/)
+      if (ssidMatch) form.wifiSSID = ssidMatch[1]
+      const encMatch = qr.value.match(/T:([^;]+)/)
+      if (encMatch) form.wifiEncryption = encMatch[1]
+      const passMatch = qr.value.match(/P:([^;]+)/)
+      if (passMatch) form.wifiPassword = passMatch[1]
+      break
+    case 'location':
+      const locationValue = qr.value.replace('geo:', '')
+      const [lat, lng] = locationValue.split(',')
+      form.locationLat = lat?.trim() || ''
+      form.locationLng = lng?.trim() || ''
+      break
   }
 }
 
@@ -239,12 +237,13 @@ const isFormValid = computed<boolean>(() => {
          hasValue
 })
 
+// FIXED: Compare full QR content to detect changes in optional fields
 const hasChanges = computed<boolean>(() => {
   if (!originalQR.value) return false
   if (form.name !== originalQR.value.name) return true
   if (form.type !== originalQR.value.type) return true
-  if (getCurrentValue() !== originalQR.value.value) return true
-  return false
+  // Compare the fully generated QR content string
+  return getFullQRContent() !== originalQR.value.value
 })
 
 watch([() => form.type, () => form.urlValue, () => form.textValue, 
@@ -264,6 +263,7 @@ async function loadQRData() {
     const qrData = await getQRCodeById(qrId.value)
     originalQR.value = qrData
     setFormValueFromQR(qrData)
+    // For display only, qrSrc might be stored separately or regenerated
     qrSrc.value = qrData.qrSrc || ''
     previewContent.value = getFullQRContent()
   } catch (error) {
@@ -280,6 +280,7 @@ async function loadQRData() {
   }
 }
 
+// FIXED: Save full QR content instead of just current value
 async function updateQR() {
   if (!validateName() || !validateFormValue()) {
     toast.add({
@@ -297,10 +298,9 @@ async function updateQR() {
     const updateData: any = {
       name: form.name.trim(),
       type: form.type,
-      value: getCurrentValue().trim()
+      value: getFullQRContent()     // Save complete QR string
     }
     
-    // Add type-specific fields
     if (form.type === 'wifi') {
       updateData.wifiEncryption = form.wifiEncryption
       updateData.wifiPassword = form.wifiPassword
