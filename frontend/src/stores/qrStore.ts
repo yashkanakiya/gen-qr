@@ -130,10 +130,11 @@ export async function updateQRCode(id: string, updates: {
     const response = await api.put<QRCodeApiResponse>(`/qrcodes/${id}`, updates)
     const index = qrCodes.value.findIndex((qr) => qr.id === id)
     if (index !== -1) {
-      const qr = qrCodes.value[index]  // qr may still be undefined, but index is valid
+      const qr = qrCodes.value[index]
       if (qr) {
-        if (updates.name) qr.name = updates.name
-        if (updates.value) qr.value = updates.value
+        if (updates.name !== undefined) qr.name = updates.name
+        if (updates.value !== undefined) qr.value = updates.value
+        if (updates.type !== undefined) qr.type = updates.type
       }
     }
     return response.data

@@ -127,11 +127,11 @@ router.put("/:id", async (req, res) => {
   try {
     const { name, value, type, wifiEncryption, wifiPassword } = req.body;
     const updates = {};
-    
+
     if (name) updates.name = name;
+    if (type) updates.type = type;           
     if (value) {
       updates.value = value;
-      
       // Regenerate QR code
       let content;
       if (type === 'wifi') {
@@ -139,24 +139,15 @@ router.put("/:id", async (req, res) => {
       } else {
         content = generateQRContent(type || 'url', value);
       }
-      
       updates.qrSrc = await QRCode.toDataURL(content, {
         width: 500,
         margin: 2,
         errorCorrectionLevel: 'H'
       });
     }
-    
-    const updatedQRCode = await dbOperations.update(
-      req.params.id,
-      req.userId,
-      updates
-    );
-    
-    if (!updatedQRCode) {
-      return res.status(404).json({ error: "QR code not found" });
-    }
-    
+
+    const updatedQRCode = await dbOperations.update(req.params.id, req.userId, updates);
+    if (!updatedQRCode) return res.status(404).json({ error: "QR code not found" });
     res.json(updatedQRCode);
   } catch (error) {
     console.error("Error updating QR code:", error);

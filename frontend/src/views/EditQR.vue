@@ -1,9 +1,9 @@
-<!-- views/EditQR.vue -->
+<!-- views/EditQR.vue (updated version with debugging and reload) -->
 <script lang="ts" setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
-import { getQRCodeById, updateQRCode, type QRCodeItem } from '../stores/qrStore'
+import { getQRCodeById, updateQRCode, loadQRCodes, type QRCodeItem } from '../stores/qrStore'
 import { QR_TYPES, generateQRContent, validateQRValue } from '../utils/qrContentGenerator'
 
 const router = useRouter()
@@ -115,7 +115,7 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
   form.name = qr.name
   form.type = qr.type
   activeTab.value = qr.type
-  
+
   switch (qr.type) {
     case 'url':
       form.urlValue = qr.value
@@ -123,36 +123,40 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
     case 'text':
       form.textValue = qr.value
       break
-    case 'email':
+    case 'email': {
       const emailMatch = qr.value.match(/mailto:([^?]+)/)
-      if (emailMatch) form.emailTo = emailMatch[1] ?? '';
+      if (emailMatch) form.emailTo = emailMatch[1] ?? ''
       const subjectMatch = qr.value.match(/subject=([^&]+)/)
-      if (subjectMatch) form.emailSubject = decodeURIComponent(subjectMatch[1] ?? '');
+      if (subjectMatch) form.emailSubject = decodeURIComponent(subjectMatch[1] ?? '')
       const bodyMatch = qr.value.match(/body=([^&]+)/)
-      if (bodyMatch) form.emailBody = decodeURIComponent(bodyMatch[1] ?? '');
+      if (bodyMatch) form.emailBody = decodeURIComponent(bodyMatch[1] ?? '')
       break
+    }
     case 'phone':
       form.phoneNumber = qr.value.replace('tel:', '')
       break
-    case 'sms':
+    case 'sms': {
       const smsParts = qr.value.replace('smsto:', '').split(':')
       form.smsNumber = smsParts[0] ?? ''
       if (smsParts[1]) form.smsMessage = decodeURIComponent(smsParts[1])
       break
-    case 'wifi':
+    }
+    case 'wifi': {
       const ssidMatch = qr.value.match(/S:([^;]+)/)
-      if (ssidMatch) form.wifiSSID = ssidMatch[1] ?? '';
+      if (ssidMatch) form.wifiSSID = ssidMatch[1] ?? ''
       const encMatch = qr.value.match(/T:([^;]+)/)
-      if (encMatch) form.wifiEncryption = encMatch[1] ?? '';
+      if (encMatch) form.wifiEncryption = encMatch[1] ?? ''
       const passMatch = qr.value.match(/P:([^;]+)/)
-      if (passMatch) form.wifiPassword = passMatch[1] ?? '';
+      if (passMatch) form.wifiPassword = passMatch[1] ?? ''
       break
-    case 'location':
+    }
+    case 'location': {
       const locationValue = qr.value.replace('geo:', '')
       const [lat, lng] = locationValue.split(',')
-      form.locationLat = lat?.trim() || ''
-      form.locationLng = lng?.trim() || ''
+      form.locationLat = lat?.trim() ?? ''
+      form.locationLng = lng?.trim() ?? ''
       break
+    }
   }
 }
 
@@ -172,25 +176,25 @@ const validateName = (): boolean => {
 
 const validateFormValue = (): boolean => {
   const value = getCurrentValue()
-  
+
   if (!value || value.trim() === '') {
     validationErrors.value.value = 'This field is required'
     return false
   }
-  
-  let error = null
-  
+
+  let error: string | null = null
+
   switch (form.type) {
-    case 'url': 
+    case 'url':
       error = validateQRValue('url', value)
       break
-    case 'email': 
+    case 'email':
       error = validateQRValue('email', value)
       break
-    case 'phone': 
+    case 'phone':
       error = validateQRValue('phone', value)
       break
-    case 'sms': 
+    case 'sms':
       error = validateQRValue('sms', value)
       break
     case 'wifi':
@@ -216,37 +220,35 @@ const validateFormValue = (): boolean => {
       }
       break
   }
-  
+
   if (error) {
     validationErrors.value.value = error
     return false
   }
-  
+
   validationErrors.value.value = ''
   return true
 }
 
 const isFormValid = computed<boolean>(() => {
-  const hasValue = getCurrentValue().trim() !== '' || 
+  const hasValue = getCurrentValue().trim() !== '' ||
     (form.type === 'wifi' && form.wifiSSID.trim() !== '') ||
     (form.type === 'location' && !!form.locationLat && !!form.locationLng)
-  
-  return validationErrors.value.name === '' && 
-         validationErrors.value.value === '' && 
-         form.name.trim() !== '' && 
+
+  return validationErrors.value.name === '' &&
+         validationErrors.value.value === '' &&
+         form.name.trim() !== '' &&
          hasValue
 })
 
-// FIXED: Compare full QR content to detect changes in optional fields
 const hasChanges = computed<boolean>(() => {
   if (!originalQR.value) return false
   if (form.name !== originalQR.value.name) return true
   if (form.type !== originalQR.value.type) return true
-  // Compare the fully generated QR content string
   return getFullQRContent() !== originalQR.value.value
 })
 
-watch([() => form.type, () => form.urlValue, () => form.textValue, 
+watch([() => form.type, () => form.urlValue, () => form.textValue,
         () => form.emailTo, () => form.emailSubject, () => form.emailBody,
         () => form.phoneNumber, () => form.smsNumber, () => form.smsMessage,
         () => form.wifiSSID, () => form.wifiEncryption, () => form.wifiPassword,
@@ -263,9 +265,9 @@ async function loadQRData() {
     const qrData = await getQRCodeById(qrId.value)
     originalQR.value = qrData
     setFormValueFromQR(qrData)
-    // For display only, qrSrc might be stored separately or regenerated
     qrSrc.value = qrData.qrSrc || ''
     previewContent.value = getFullQRContent()
+    console.log('Loaded QR type:', qrData.type)  // Debug
   } catch (error) {
     console.error('Error loading QR:', error)
     toast.add({
@@ -280,7 +282,6 @@ async function loadQRData() {
   }
 }
 
-// FIXED: Save full QR content instead of just current value
 async function updateQR() {
   if (!validateName() || !validateFormValue()) {
     toast.add({
@@ -291,30 +292,42 @@ async function updateQR() {
     })
     return
   }
-  
+
   isSaving.value = true
-  
+
   try {
     const updateData: any = {
       name: form.name.trim(),
-      type: form.type,
-      value: getFullQRContent()     // Save complete QR string
+      type: form.type,          // ✅ type is included
+      value: getFullQRContent()
     }
-    
+
     if (form.type === 'wifi') {
       updateData.wifiEncryption = form.wifiEncryption
       updateData.wifiPassword = form.wifiPassword
     }
-    
+
+    console.log('Sending update:', updateData)  // Debug
+
     await updateQRCode(qrId.value, updateData)
-    
+
+    // ✅ Reload QR data to ensure UI reflects backend changes
+    const refreshed = await getQRCodeById(qrId.value)
+    originalQR.value = refreshed
+    setFormValueFromQR(refreshed)
+    qrSrc.value = refreshed.qrSrc || ''
+    previewContent.value = getFullQRContent()
+
+    // Also refresh the global list
+    await loadQRCodes()
+
     toast.add({
       severity: 'success',
       summary: 'Updated!',
       detail: 'QR code updated successfully',
       life: 3000
     })
-    
+
     setTimeout(() => {
       router.push('/dashboard')
     }, 1500)
@@ -339,6 +352,7 @@ function setType(type: string) {
   form.type = type
   activeTab.value = type
   validationErrors.value.value = ''
+  console.log('Type changed to:', type)  // Debug
 }
 
 onMounted(() => {
@@ -347,6 +361,7 @@ onMounted(() => {
 </script>
 
 <template>
+  <!-- Your existing template remains exactly the same -->
   <div class="flex items-center justify-center min-h-screen">
     <div class="max-w-2xl mx-auto w-full px-4">
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
