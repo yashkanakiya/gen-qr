@@ -2,6 +2,10 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import Menu from 'primevue/menu'
+import Button from 'primevue/button'
 import { qrCodes, loadQRCodes, deleteQRCode, getQRCodeAnalytics, getRedirectUrl, type QRCodeItem, type ScanAnalytics } from '../stores/qrStore'
 
 const router = useRouter()
@@ -9,10 +13,13 @@ const toast = useToast()
 const isLoading = ref(true)
 const deleteModalVisible = ref(false)
 const analyticsModalVisible = ref(false)
+const viewModalVisible = ref(false)
 const selectedQR = ref<QRCodeItem | null>(null)
+const viewSelectedQR = ref<QRCodeItem | null>(null)
 const selectedAnalytics = ref<ScanAnalytics | null>(null)
 const analyticsLoading = ref(false)
-let refreshInterval: NodeJS.Timeout | null = null
+const actionMenu = ref()
+const actionMenuItems = ref<any[]>([])
 
 const qrTypesMap: Record<string, { label: string; icon: string; color: string }> = {
   url: { label: 'URL', icon: 'pi pi-globe', color: 'blue' },
@@ -126,7 +133,9 @@ const handleDelete = async () => {
       life: 3000
     })
     deleteModalVisible.value = false
+    viewModalVisible.value = false
     selectedQR.value = null
+    viewSelectedQR.value = null
   } catch (error) {
     toast.add({
       severity: 'error',
@@ -173,7 +182,7 @@ const refreshAnalytics = async () => {
   }
 }
 
-// Auto-refresh every 5 seconds when modal is open
+let refreshInterval: NodeJS.Timeout | null = null
 watch(analyticsModalVisible, (isVisible) => {
   if (isVisible) {
     refreshInterval = setInterval(() => {
@@ -201,6 +210,32 @@ const createNew = () => {
   router.push('/create-qr')
 }
 
+const showViewModal = (qr: QRCodeItem) => {
+  viewSelectedQR.value = qr
+  viewModalVisible.value = true
+}
+
+const toggleActionMenu = (event: Event, qr: QRCodeItem) => {
+  actionMenuItems.value = [
+    {
+      label: 'Update',
+      icon: 'pi pi-pencil',
+      command: () => editQR(qr)
+    },
+    {
+      label: 'Delete',
+      icon: 'pi pi-trash',
+      command: () => confirmDelete(qr)
+    },
+    {
+      label: 'View',
+      icon: 'pi pi-eye',
+      command: () => showViewModal(qr)
+    }
+  ]
+  actionMenu.value?.toggle(event)
+}
+
 const getChartData = computed(() => {
   if (!selectedAnalytics.value?.scans_by_day) return []
   return selectedAnalytics.value.scans_by_day.slice().reverse()
@@ -221,11 +256,19 @@ onMounted(() => {
     <div class="max-w-6xl mx-auto px-4">
       <!-- Header -->
       <div class="mb-8">
-        <div>
-          <h1 class="text-2xl md:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            My QR Codes
-          </h1>
-          <p class="text-gray-600 mt-1">Manage and track your QR codes</p>
+        <div class="flex justify-between items-center flex-wrap gap-4">
+          <div>
+            <h1 class="text-2xl md:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              My QR Codes
+            </h1>
+            <p class="text-gray-600 mt-1">Manage and track your QR codes</p>
+          </div>
+          <button
+            @click="createNew"
+            class="px-4 py-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-sm flex items-center gap-2"
+          >
+            <i class="pi pi-plus"></i> Create QR Code
+          </button>
         </div>
       </div>
 
@@ -234,112 +277,71 @@ onMounted(() => {
         <i class="pi pi-spin pi-spinner text-4xl text-blue-500"></i>
       </div>
 
-      <!-- Empty State -->
-      <div v-else-if="qrCodes.length === 0" class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
-        <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <i class="pi pi-qrcode text-3xl text-gray-400"></i>
-        </div>
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">No QR Codes Yet</h3>
-        <p class="text-gray-600 mb-6">Create your first QR code to get started</p>
-        <button
-          @click="createNew"
-          class="px-4 py-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all"
+      <!-- Data Table with custom paginator styling -->
+      <div v-else class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <DataTable
+          :value="qrCodes"
+          :paginator="true"
+          :rows="5"
+          :rowsPerPageOptions="[5, 10, 20]"
+          stripedRows
+          tableClass="w-full"
+          paginatorClass="p-4 border-t border-gray-100 custom-paginator"
         >
-          Create QR Code
-        </button>
-      </div>
+          <Column field="created_at" header="Created At" class="text-sm">
+            <template #body="{ data }">
+              <span class="text-gray-700">{{ formatDate(data.created_at) }}</span>
+            </template>
+          </Column>
 
-      <!-- QR Codes Grid -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div
-          v-for="qr in qrCodes"
-          :key="qr.id"
-          class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
-        >
-          <!-- QR Preview -->
-          <div class="bg-gray-50 p-4 flex justify-center border-b border-gray-100">
-            <img :src="qr.qrSrc" :alt="qr.name" class="w-32 h-32 object-contain" />
-          </div>
-          
-          <!-- Content -->
-          <div class="p-4">
-            <div class="flex items-start justify-between mb-2">
-              <div>
-                <div class="flex items-center gap-2 mb-1">
-                  <i :class="[qrTypesMap[qr.type]?.icon || 'pi pi-qrcode', getIconColorClass(qrTypesMap[qr.type]?.color)]" class="text-sm"></i>
-                  <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
-                    {{ qrTypesMap[qr.type]?.label || qr.type }}
-                  </span>
-                </div>
-                <h3 class="font-semibold text-gray-900">{{ qr.name }}</h3>
-                <p class="text-xs text-gray-500 mt-1">{{ formatDate(qr.created_at) }}</p>
+          <Column header="QR Code" class="text-center">
+            <template #body="{ data }">
+              <img :src="data.qrSrc" :alt="data.name" class="w-10 h-10 object-contain rounded-lg bg-gray-50 p-1" />
+            </template>
+          </Column>
+
+          <Column field="name" header="Name" class="text-sm">
+            <template #body="{ data }">
+              <div class="flex items-center gap-2">
+                <i :class="[qrTypesMap[data.type]?.icon || 'pi pi-qrcode', getIconColorClass(qrTypesMap[data.type]?.color)]" class="text-sm"></i>
+                <span class="font-medium text-gray-800">{{ data.name }}</span>
               </div>
-              <button
-                @click="editQR(qr)"
-                class="text-gray-400 hover:text-blue-500 transition-colors"
-              >
-                <i class="pi pi-pencil"></i>
-              </button>
-            </div>
-            
-            <!-- Stats -->
-            <div class="mt-3 pt-3 border-t border-gray-100">
-              <div class="flex items-center justify-between text-sm">
-                <div class="flex items-center gap-2">
-                  <i class="pi pi-chart-line text-gray-400"></i>
-                  <span class="text-gray-600">{{ qr.scan_count || 0 }} scans</span>
-                </div>
-                <button
-                  @click="viewAnalytics(qr)"
-                  class="text-blue-500 hover:text-blue-600 text-sm font-medium"
-                >
-                  View Stats →
-                </button>
-              </div>
-            </div>
-            
-            <!-- Link -->
-            <div class="mt-2 flex items-center gap-2">
-              <input
-                :value="getQRCodeLink(qr)"
-                type="text"
-                readonly
-                class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1 text-gray-600"
+            </template>
+          </Column>
+
+          <Column header="Actions" class="text-center w-20">
+            <template #body="{ data }">
+              <Button
+                icon="pi pi-ellipsis-v"
+                class="p-button-rounded p-button-text p-button-sm action-dots-btn"
+                @click="toggleActionMenu($event, data)"
+                aria-haspopup="true"
+                aria-controls="action_menu"
               />
+            </template>
+          </Column>
+
+          <template #empty>
+            <div class="text-center py-12">
+              <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="pi pi-qrcode text-2xl text-gray-400"></i>
+              </div>
+              <h3 class="text-lg font-semibold text-gray-900 mb-2">No QR Codes Yet</h3>
+              <p class="text-gray-600 mb-4">Create your first QR code to get started</p>
               <button
-                @click="copyToClipboard(getQRCodeLink(qr))"
-                class="p-1 text-gray-400 hover:text-blue-500 transition-colors"
-                title="Copy link"
+                @click="createNew"
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all"
               >
-                <i class="pi pi-copy"></i>
+                Create QR Code
               </button>
             </div>
-          </div>
-          
-          <!-- Actions -->
-          <div class="flex border-t border-gray-100 divide-x divide-gray-100">
-            <button
-              @click="viewAnalytics(qr)"
-              class="flex-1 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
-            >
-              <i class="pi pi-chart-line mr-1"></i> Analytics
-            </button>
-            <button
-              @click="editQR(qr)"
-              class="flex-1 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
-            >
-              <i class="pi pi-pencil mr-1"></i> Edit
-            </button>
-            <button
-              @click="confirmDelete(qr)"
-              class="flex-1 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
-            >
-              <i class="pi pi-trash mr-1"></i> Delete
-            </button>
-          </div>
-        </div>
+          </template>
+        </DataTable>
       </div>
     </div>
+
+    <!-- Action Menu -->
+    <Menu ref="actionMenu" :model="actionMenuItems" popup id="action_menu" />
 
     <!-- Delete Confirmation Modal -->
     <div v-if="deleteModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="deleteModalVisible = false">
@@ -359,6 +361,70 @@ onMounted(() => {
           </button>
           <button @click="handleDelete" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium">
             Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- View QR Card Modal (Analytics button replaces Edit/Delete) -->
+    <div v-if="viewModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="viewModalVisible = false">
+      <div class="bg-white rounded-xl max-w-md w-full shadow-2xl animate-fade-in">
+        <div class="relative bg-gray-50 p-6 flex justify-center border-b border-gray-100">
+          <img :src="viewSelectedQR?.qrSrc" alt="QR Code" class="w-40 h-40 object-contain" />
+          <button @click="viewModalVisible = false" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors">
+            <i class="pi pi-times text-xl"></i>
+          </button>
+        </div>
+        
+        <div class="p-5">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <i :class="[qrTypesMap[viewSelectedQR?.type || 'url']?.icon, getIconColorClass(qrTypesMap[viewSelectedQR?.type || 'url']?.color)]" class="text-sm"></i>
+                <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
+                  {{ qrTypesMap[viewSelectedQR?.type || 'url']?.label || viewSelectedQR?.type }}
+                </span>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">{{ viewSelectedQR?.name }}</h3>
+              <p class="text-xs text-gray-500 mt-1">{{ formatDate(viewSelectedQR?.created_at || '') }}</p>
+            </div>
+          </div>
+          
+          <!-- Stats -->
+          <div class="mt-4 pt-3 border-t border-gray-100">
+            <div class="flex items-center justify-between text-sm">
+              <div class="flex items-center gap-2">
+                <i class="pi pi-chart-line text-gray-400"></i>
+                <span class="text-gray-600">{{ viewSelectedQR?.scan_count || 0 }} scans</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Link -->
+          <div class="mt-3 flex items-center gap-2">
+            <input
+              :value="getQRCodeLink(viewSelectedQR!)"
+              type="text"
+              readonly
+              class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 focus:outline-none"
+            />
+            <button
+              @click="copyToClipboard(getQRCodeLink(viewSelectedQR!))"
+              class="p-2 text-gray-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100"
+              title="Copy link"
+            >
+              <i class="pi pi-copy"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Single Analytics Button (replaces Edit/Delete) -->
+        <div class="p-4 border-t border-gray-100">
+          <button
+            @click="viewAnalytics(viewSelectedQR!); viewModalVisible = false"
+            class="w-full py-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2"
+          >
+            <i class="pi pi-chart-line"></i> View Analytics
           </button>
         </div>
       </div>
@@ -490,5 +556,102 @@ onMounted(() => {
 
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out;
+}
+
+/* Force PrimeVue paginator theme - blue linear gradient */
+:deep(.p-paginator .p-paginator-pages .p-paginator-page.p-highlight) {
+  background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
+  border-color: #2563eb !important;
+  color: white !important;
+  box-shadow: none !important;
+}
+
+:deep(.p-paginator .p-paginator-pages .p-paginator-page:not(.p-highlight):hover) {
+  background: rgba(37, 99, 235, 0.1) !important;
+  border-color: #bfdbfe !important;
+  color: #2563eb !important;
+}
+
+:deep(.p-paginator .p-paginator-next:hover),
+:deep(.p-paginator .p-paginator-prev:hover),
+:deep(.p-paginator .p-paginator-first:hover),
+:deep(.p-paginator .p-paginator-last:hover) {
+  background: rgba(37, 99, 235, 0.1) !important;
+  color: #2563eb !important;
+}
+
+:deep(.p-paginator .p-dropdown:hover) {
+  border-color: #2563eb !important;
+}
+
+:deep(.p-paginator .p-dropdown .p-dropdown-trigger) {
+  color: #4b5563;
+}
+
+:deep(.p-paginator .p-dropdown:hover .p-dropdown-trigger) {
+  color: #2563eb;
+}
+
+/* Force three-dots action button theme */
+:deep(.action-dots-btn.p-button.p-button-text) {
+  color: #6b7280 !important;
+  background: transparent !important;
+  transition: all 0.2s;
+}
+
+:deep(.action-dots-btn.p-button.p-button-text:hover) {
+  color: #2563eb !important;
+  background: rgba(37, 99, 235, 0.1) !important;
+}
+
+/* Ensure paginator background and border stay clean */
+:deep(.p-paginator) {
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  padding: 0.75rem 1rem;
+}
+
+/* Rows per page dropdown styling */
+:deep(.p-paginator .p-dropdown) {
+  border-radius: 0.5rem;
+  border-color: #d1d5db;
+}
+
+:deep(.p-paginator .p-dropdown:focus) {
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  border-color: #2563eb;
+}
+
+/* Page number buttons */
+:deep(.p-paginator .p-paginator-page) {
+  min-width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+/* Next/Prev buttons */
+:deep(.p-paginator .p-paginator-next),
+:deep(.p-paginator .p-paginator-prev),
+:deep(.p-paginator .p-paginator-first),
+:deep(.p-paginator .p-paginator-last) {
+  min-width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+/* Menu popup theme (optional) */
+:deep(.p-menu .p-menuitem-link:hover) {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+:deep(.p-menu .p-menuitem-link .p-menuitem-icon) {
+  color: #4b5563;
+}
+
+:deep(.p-menu .p-menuitem-link:hover .p-menuitem-icon) {
+  color: #2563eb;
 }
 </style>
