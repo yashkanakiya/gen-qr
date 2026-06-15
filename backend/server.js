@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://gen-qr-five.vercel.app/.app'
+    'https://gen-qr-five.vercel.app/'
   ],
   credentials: true
 }));
