@@ -93,6 +93,68 @@ const getCountryFromIP = async (ip) => {
   }
 };
 
+// Helper function to render landing page for non-URL QR codes
+function renderLandingPage(qrCode, content, res) {
+  const actionButtonText = getActionButtonText(qrCode.type);
+  const actionScript = getActionScript(qrCode.type, content);
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${qrCode.name}</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+        .card { background: white; border-radius: 20px; padding: 40px; max-width: 500px; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        h1 { margin-top: 0; color: #333; }
+        .type-badge { display: inline-block; background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin-bottom: 15px; }
+        .value { background: #f5f5f5; padding: 15px; border-radius: 10px; word-break: break-all; margin: 20px 0; font-size: 14px; }
+        .btn { background: #667eea; color: white; border: none; padding: 12px 30px; border-radius: 10px; cursor: pointer; font-size: 16px; transition: transform 0.2s; }
+        .btn:hover { transform: scale(1.05); }
+        .btn:active { transform: scale(0.95); }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h1>${qrCode.name}</h1>
+        <div class="type-badge">${qrCode.type}</div>
+        <div class="value">${content}</div>
+        <button class="btn" onclick="${actionScript}">${actionButtonText}</button>
+      </div>
+    </body>
+    </html>
+  `);
+}
+
+function getActionButtonText(type) {
+  switch (type) {
+    case 'email': return 'Send Email';
+    case 'phone': return 'Call Now';
+    case 'sms': return 'Send SMS';
+    case 'wifi': return 'Connect to WiFi';
+    case 'location': return 'Open Maps';
+    default: return 'Open';
+  }
+}
+
+function getActionScript(type, content) {
+  switch (type) {
+    case 'email':
+      return `window.location.href = '${content}';`;
+    case 'phone':
+      return `window.location.href = '${content}';`;
+    case 'sms':
+      return `window.location.href = '${content}';`;
+    case 'wifi':
+      return `alert('WiFi: ${content}\\n\\nNote: On iOS, you need to manually enter WiFi details.\\nOn Android, this may open WiFi settings.');`;
+    case 'location':
+      return `window.location.href = '${content}';`;
+    default:
+      return `window.location.href = '${content}';`;
+  }
+}
+
 // =============================================
 // PUBLIC REDIRECT ROUTE - NO AUTH REQUIRED
 // =============================================
@@ -129,6 +191,7 @@ app.get("/r/:slug", async (req, res) => {
     }
 
     console.log(`✅ Found QR: ${qrCode.name} (ID: ${qrCode.id})`);
+    console.log(`📝 Type: ${qrCode.type}, Content: ${qrCode.value}`);
 
     // Get client info
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
@@ -153,12 +216,11 @@ app.get("/r/:slug", async (req, res) => {
       if (recentScan.rows.length > 0) {
         console.log(`⏭️ Duplicate scan detected for IP ${ip} (${recentScan.rows[0].scanned_at})`);
         // Still redirect, but don't record duplicate analytics
-        const content = generateQRContent(qrCode.type, qrCode.value);
+        const content = qrCode.value;
         if (qrCode.type === 'url') {
-          return res.redirect(301, content);
+          return res.redirect(302, content);
         }
-        // ... handle non-URL redirects
-        return res.redirect(301, content);
+        return renderLandingPage(qrCode, content, res);
       }
     } catch (duplicateCheckError) {
       console.error("Duplicate check error:", duplicateCheckError);
@@ -193,43 +255,17 @@ app.get("/r/:slug", async (req, res) => {
     }
 
     // =============================================
-    // REDIRECT
+    // REDIRECT - Use the stored content directly
     // =============================================
-    const content = generateQRContent(qrCode.type, qrCode.value);
+    const content = qrCode.value;
 
     if (qrCode.type === 'url') {
-      console.log(`🚀 Redirecting to: ${content}`);
-      return res.redirect(301, content);
+      console.log(`🚀 Redirecting to URL: ${content}`);
+      return res.redirect(302, content);
     }
 
     // For non-URL types, show landing page
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${qrCode.name}</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-          body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
-          .card { background: white; border-radius: 20px; padding: 40px; max-width: 500px; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-          h1 { margin-top: 0; color: #333; }
-          .type-badge { display: inline-block; background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin-bottom: 15px; }
-          .value { background: #f5f5f5; padding: 15px; border-radius: 10px; word-break: break-all; margin: 20px 0; }
-          .btn { background: #667eea; color: white; border: none; padding: 12px 30px; border-radius: 10px; cursor: pointer; font-size: 16px; transition: transform 0.2s; }
-          .btn:hover { transform: scale(1.05); }
-          .btn:active { transform: scale(0.95); }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h1>${qrCode.name}</h1>
-          <div class="type-badge">${qrCode.type}</div>
-          <div class="value">${qrCode.value}</div>
-          <button class="btn" onclick="window.location.href='${content}'">Continue</button>
-        </div>
-      </body>
-      </html>
-    `);
+    return renderLandingPage(qrCode, content, res);
 
   } catch (error) {
     console.error("❌ Redirect error:", error);
@@ -272,6 +308,16 @@ app.use((err, req, res, next) => {
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    baseUrl: process.env.BASE_URL
+  });
 });
 
 // Initialize database and start server
