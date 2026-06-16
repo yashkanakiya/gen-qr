@@ -622,12 +622,6 @@ onMounted(() => {
                 </button>
               </div>
 
-              <Column field="scan_count" header="Scans" class="text-sm text-center">
-                <template #body="{ data }">
-                  <span class="font-medium text-blue-600">{{ data.scan_count || 0 }}</span>
-                </template>
-              </Column>
-              
               <div class="flex items-center gap-2">
                 <input
                   :value="getQRCodeLink(qr)"
