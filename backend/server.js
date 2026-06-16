@@ -13,10 +13,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-// app.use(cors({
-//   origin: import.meta.env.VITE_API_URL ||'http://localhost:5173',
-//   credentials: true
-// }));
 app.use(cors({
   origin: [
     'http://localhost:5173',
@@ -41,7 +37,6 @@ const parseUserAgent = (userAgent) => {
   let browser = 'Unknown';
   let os = 'Unknown';
 
-  // Detect device type
   if (ua.includes('Mobile') || ua.includes('Android') || ua.includes('iPhone')) {
     deviceType = 'Mobile';
   } else if (ua.includes('iPad') || ua.includes('Tablet')) {
@@ -50,14 +45,12 @@ const parseUserAgent = (userAgent) => {
     deviceType = 'Desktop';
   }
 
-  // Detect browser
   if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
   else if (ua.includes('Firefox')) browser = 'Firefox';
   else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
   else if (ua.includes('Edge')) browser = 'Edge';
   else if (ua.includes('Opera')) browser = 'Opera';
 
-  // Detect OS
   if (ua.includes('Windows')) os = 'Windows';
   else if (ua.includes('Mac OS')) os = 'macOS';
   else if (ua.includes('Linux')) os = 'Linux';
@@ -67,12 +60,19 @@ const parseUserAgent = (userAgent) => {
   return { deviceType, browser, os };
 };
 
-// Helper to get country from IP
-const getCountryFromIP = (ip) => {
+// Helper to get country from IP (you can use a service like ip-api.com for real data)
+const getCountryFromIP = async (ip) => {
   if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') {
     return 'Localhost';
   }
-  return 'Unknown';
+  try {
+    // Using ip-api.com for free geolocation
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=country`);
+    const data = await response.json();
+    return data.country || 'Unknown';
+  } catch (error) {
+    return 'Unknown';
+  }
 };
 
 // =============================================
@@ -80,70 +80,79 @@ const getCountryFromIP = (ip) => {
 // =============================================
 app.get("/r/:slug", async (req, res) => {
   const { slug } = req.params;
-  console.log("🔍 Scan received for slug:", slug);
-  
+  console.log(`🔍 Scan received for slug: ${slug}`);
+
   try {
     const qrCode = await dbOperations.getBySlug(slug);
-    
+
     if (!qrCode) {
-      console.log("❌ QR Code not found:", slug);
+      console.log(`❌ QR Code not found: ${slug}`);
       return res.status(404).send(`
         <!DOCTYPE html>
         <html>
         <head>
           <title>QR Code Not Found</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
-            body { font-family: Arial; text-align: center; padding: 50px; }
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
             .error { color: red; }
+            .card { background: white; border-radius: 10px; padding: 30px; max-width: 400px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
           </style>
         </head>
         <body>
-          <h1 class="error">QR Code Not Found</h1>
-          <p>The QR code "${slug}" doesn't exist.</p>
+          <div class="card">
+            <h1 class="error">QR Code Not Found</h1>
+            <p>The QR code "${slug}" doesn't exist.</p>
+            <a href="/">Go Home</a>
+          </div>
         </body>
         </html>
       `);
     }
-    
+
     console.log(`✅ Found QR: ${qrCode.name} (ID: ${qrCode.id})`);
-    
-    // Record analytics with full data
+
+    // Record analytics
     try {
-  // ... after finding qrCode
-  const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
-             req.socket?.remoteAddress || 
-             req.connection?.remoteAddress || 
-             'unknown';
-  const userAgent = req.headers['user-agent'] || '';
-  const referer = req.headers.referer || req.headers.referrer || '';
-  const { deviceType, browser, os } = parseUserAgent(userAgent);
-  const country = getCountryFromIP(ip);
+      const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
+                 req.socket?.remoteAddress || 
+                 req.connection?.remoteAddress || 
+                 'unknown';
+      const userAgent = req.headers['user-agent'] || '';
+      const referer = req.headers.referer || req.headers.referrer || '';
+      const { deviceType, browser, os } = parseUserAgent(userAgent);
+      
+      // Get country from IP (async)
+      const country = await getCountryFromIP(ip);
 
-  await db.query(
-    `INSERT INTO scan_analytics 
-     (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
-    [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer]
-  );
+      // Insert scan record
+      await db.query(
+        `INSERT INTO scan_analytics 
+         (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
+        [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer]
+      );
 
-  await db.query(
-    `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
-    [qrCode.id]
-  );
-  
-  console.log(`✅ Scan recorded - Device: ${deviceType}, Browser: ${browser}, OS: ${os}, Country: ${country}`);
-} catch (analyticsError) {
-  console.error("Analytics error:", analyticsError);
-}
-    
+      // Increment scan count
+      await db.query(
+        `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
+        [qrCode.id]
+      );
+
+      console.log(`✅ Scan recorded - Device: ${deviceType}, Browser: ${browser}, OS: ${os}, Country: ${country}`);
+    } catch (analyticsError) {
+      console.error("❌ Analytics error:", analyticsError);
+      // Continue with redirect even if analytics fails
+    }
+
     // Generate content and redirect
     const content = generateQRContent(qrCode.type, qrCode.value);
-    
+
     if (qrCode.type === 'url') {
       console.log(`🚀 Redirecting to: ${content}`);
       return res.redirect(301, content);
     }
-    
+
     // For non-URL types, show landing page
     res.send(`
       <!DOCTYPE html>
@@ -152,26 +161,50 @@ app.get("/r/:slug", async (req, res) => {
         <title>${qrCode.name}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-          body { font-family: system-ui, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-          .card { background: white; border-radius: 10px; padding: 30px; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-          button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; }
-          button:hover { background: #45a049; }
+          body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+          .card { background: white; border-radius: 20px; padding: 40px; max-width: 500px; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+          h1 { margin-top: 0; color: #333; }
+          .type-badge { display: inline-block; background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin-bottom: 15px; }
+          .value { background: #f5f5f5; padding: 15px; border-radius: 10px; word-break: break-all; margin: 20px 0; }
+          .btn { background: #667eea; color: white; border: none; padding: 12px 30px; border-radius: 10px; cursor: pointer; font-size: 16px; transition: transform 0.2s; }
+          .btn:hover { transform: scale(1.05); }
+          .btn:active { transform: scale(0.95); }
         </style>
       </head>
       <body>
         <div class="card">
           <h1>${qrCode.name}</h1>
-          <p><strong>Type:</strong> ${qrCode.type}</p>
-          <p><strong>Value:</strong> ${qrCode.value}</p>
-          <button onclick="window.location.href='${content}'">Continue</button>
+          <div class="type-badge">${qrCode.type}</div>
+          <div class="value">${qrCode.value}</div>
+          <button class="btn" onclick="window.location.href='${content}'">Continue</button>
         </div>
       </body>
       </html>
     `);
-    
+
   } catch (error) {
     console.error("❌ Redirect error:", error);
-    res.status(500).send("Internal server error");
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Error</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+          .card { background: white; border-radius: 10px; padding: 30px; max-width: 400px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .error { color: red; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1 class="error">Error</h1>
+          <p>Something went wrong. Please try again later.</p>
+          <a href="/">Go Home</a>
+        </div>
+      </body>
+      </html>
+    `);
   }
 });
 
@@ -196,7 +229,7 @@ app.use((req, res) => {
 const startServer = async () => {
   try {
     await initDatabase();
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`\n✅ Server running on http://localhost:${PORT}`);
       console.log(`📱 Test scan URL: http://localhost:${PORT}/r/YOUR_SLUG_HERE`);
       console.log(`🔐 API: http://localhost:${PORT}/api/qrcodes\n`);
