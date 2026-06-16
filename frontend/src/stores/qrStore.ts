@@ -161,7 +161,8 @@ export async function refreshQRCodes(): Promise<QRCodeItem[]> {
 }
 
 export function getRedirectUrl(slug: string): string {
-  // Use the API base URL for redirects
   const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-  return `${apiBaseUrl}/r/${slug}`
+  // Remove '/api' from the base URL if it's included
+  const baseUrl = apiBaseUrl.replace('/api', '')
+  return `${baseUrl}/r/${slug}`
 }

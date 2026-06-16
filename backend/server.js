@@ -8,6 +8,7 @@ import { initDatabase } from "./database/database.js";
 import { dbOperations } from "./database/database.js";
 import { db } from "./database/database.js";
 import { generateQRContent } from "./utils/qrContentGenerator.js";
+import rateLimit from 'express-rate-limit';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,35 +32,53 @@ app.use((req, res, next) => {
 });
 
 // Helper function to parse user agent
+// Helper function to parse user agent
 const parseUserAgent = (userAgent) => {
   const ua = userAgent || '';
   let deviceType = 'Unknown';
   let browser = 'Unknown';
   let os = 'Unknown';
 
-  if (ua.includes('Mobile') || ua.includes('Android') || ua.includes('iPhone')) {
+  // Detect OS first (order matters!)
+  if (ua.includes('Windows')) os = 'Windows';
+  else if (ua.includes('Mac OS') || ua.includes('Macintosh')) os = 'macOS';
+  else if (ua.includes('Linux') && !ua.includes('Android')) os = 'Linux';
+  else if (ua.includes('Android')) os = 'Android';
+  else if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad') || ua.includes('iPod')) os = 'iOS';
+  else if (ua.includes('CrOS')) os = 'ChromeOS';
+
+  // Detect device type (should be based on OS and user agent)
+  if (ua.includes('iPhone') || ua.includes('iPod')) {
     deviceType = 'Mobile';
-  } else if (ua.includes('iPad') || ua.includes('Tablet')) {
+  } else if (ua.includes('iPad')) {
     deviceType = 'Tablet';
-  } else {
+  } else if (ua.includes('Android') && ua.includes('Mobile')) {
+    deviceType = 'Mobile';
+  } else if (ua.includes('Android') && !ua.includes('Mobile')) {
+    deviceType = 'Tablet';
+  } else if (ua.includes('Windows') && (ua.includes('Phone') || ua.includes('Mobile'))) {
+    deviceType = 'Mobile';
+  } else if (ua.includes('Mac OS') || ua.includes('Windows') || ua.includes('Linux')) {
     deviceType = 'Desktop';
   }
 
-  if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
-  else if (ua.includes('Firefox')) browser = 'Firefox';
-  else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
-  else if (ua.includes('Edge')) browser = 'Edge';
-  else if (ua.includes('Opera')) browser = 'Opera';
-
-  if (ua.includes('Windows')) os = 'Windows';
-  else if (ua.includes('Mac OS')) os = 'macOS';
-  else if (ua.includes('Linux')) os = 'Linux';
-  else if (ua.includes('Android')) os = 'Android';
-  else if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+  // Detect browser
+  if (ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')) {
+    browser = 'Chrome';
+  } else if (ua.includes('Firefox')) {
+    browser = 'Firefox';
+  } else if (ua.includes('Safari') && !ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')) {
+    browser = 'Safari';
+  } else if (ua.includes('Edg')) {
+    browser = 'Edge';
+  } else if (ua.includes('OPR') || ua.includes('Opera')) {
+    browser = 'Opera';
+  } else if (ua.includes('Brave')) {
+    browser = 'Brave';
+  }
 
   return { deviceType, browser, os };
 };
-
 // Helper to get country from IP (you can use a service like ip-api.com for real data)
 const getCountryFromIP = async (ip) => {
   if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') {
@@ -75,10 +94,29 @@ const getCountryFromIP = async (ip) => {
   }
 };
 
+// Rate limiter for scan routes (prevents duplicate scans)
+const scanLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 2, // Allow 2 scans per minute per IP
+  keyGenerator: (req) => {
+    // Use IP + slug as the key
+    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress || 'unknown';
+    return `${ip}:${req.params.slug}`;
+  },
+  handler: (req, res) => {
+    // Instead of blocking, just skip the analytics
+    console.log('⏭️ Duplicate scan detected, skipping analytics');
+    // Continue with redirect
+    const { slug } = req.params;
+    // We'll handle this in the route
+  }
+});
+
+
 // =============================================
 // PUBLIC REDIRECT ROUTE - NO AUTH REQUIRED
 // =============================================
-app.get("/r/:slug", async (req, res) => {
+app.get("/r/:slug", scanLimiter,async (req, res) => {
   const { slug } = req.params;
   console.log(`🔍 Scan received for slug: ${slug}`);
 

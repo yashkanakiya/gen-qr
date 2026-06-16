@@ -6,8 +6,11 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Menu from 'primevue/menu'
 import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
+import { Bar } from 'vue-chartjs'
+import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
 import { qrCodes, loadQRCodes, deleteQRCode, getQRCodeAnalytics, getRedirectUrl, type QRCodeItem, type ScanAnalytics } from '../stores/qrStore'
+
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
 
 const router = useRouter()
 const toast = useToast()
@@ -413,6 +416,47 @@ async function downloadQRFromContent(format: 'png' | 'jpg' | 'svg') {
     downloadLoading.value = false
   }
 }
+
+// Chart options
+const chartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false
+    },
+    tooltip: {
+      callbacks: {
+        label: (context: any) => `${context.parsed.y} scans`
+      }
+    }
+  },
+  scales: {
+    y: {
+      beginAtZero: true,
+      ticks: {
+        stepSize: 1
+      }
+    }
+  }
+}))
+
+const chartData = computed(() => {
+  const days = getChartData.value.slice(-7) // Last 7 days
+  return {
+    labels: days.map(d => {
+      const date = new Date(d.date)
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }),
+    datasets: [{
+      data: days.map(d => d.count),
+      backgroundColor: 'rgba(59, 130, 246, 0.7)',
+      borderColor: 'rgb(59, 130, 246)',
+      borderWidth: 1,
+      borderRadius: 4,
+    }]
+  }
+})
 
 onMounted(() => {
   loadData()
@@ -851,21 +895,11 @@ onMounted(() => {
             </div>
             
             <!-- Scans Over Time Chart -->
-            <div v-if="selectedAnalytics.scans_by_day && selectedAnalytics.scans_by_day.length > 0" class="mb-6">
+             <div v-if="selectedAnalytics.scans_by_day && selectedAnalytics.scans_by_day.length > 0" class="mb-6">
               <h4 class="font-semibold text-gray-700 mb-3 text-sm sm:text-base">Scans Over Time</h4>
               <div class="bg-gray-50 rounded-lg p-3 sm:p-4">
-                <div class="flex items-end gap-1 sm:gap-2 h-32">
-                  <div
-                    v-for="day in getChartData.slice(-7)"
-                    :key="day.date"
-                    class="flex-1 flex flex-col items-center"
-                  >
-                    <div
-                      class="w-full bg-blue-500 rounded-t transition-all hover:bg-blue-600"
-                      :style="{ height: `${(day.count / getMaxScans) * 100}%`, minHeight: '4px' }"
-                    ></div>
-                    <span class="text-xs text-gray-500 mt-1">{{ new Date(day.date).getDate() }}</span>
-                  </div>
+                <div class="h-48">
+                  <Bar :data="chartData" :options="chartOptions" />
                 </div>
               </div>
             </div>
