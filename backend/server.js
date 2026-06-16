@@ -129,6 +129,7 @@ app.get("/r/:slug", async (req, res) => {
     }
 
     console.log(`✅ Found QR: ${qrCode.name} (ID: ${qrCode.id})`);
+    console.log(`📝 Type: ${qrCode.type}, Content: ${qrCode.value}`);
 
     // Get client info
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
@@ -142,7 +143,6 @@ app.get("/r/:slug", async (req, res) => {
     // DUPLICATE DETECTION - PREVENT MULTIPLE SCANS
     // =============================================
     try {
-      // Check if this IP has scanned this QR code recently (within last 30 seconds)
       const recentScan = await db.query(
         `SELECT id, scanned_at FROM scan_analytics 
          WHERE qr_id = $1 AND ip = $2 AND scanned_at > NOW() - INTERVAL '30 seconds'
@@ -151,28 +151,25 @@ app.get("/r/:slug", async (req, res) => {
       );
 
       if (recentScan.rows.length > 0) {
-        console.log(`⏭️ Duplicate scan detected for IP ${ip} (${recentScan.rows[0].scanned_at})`);
+        console.log(`⏭️ Duplicate scan detected for IP ${ip}`);
         // Still redirect, but don't record duplicate analytics
-        const content = generateQRContent(qrCode.type, qrCode.value);
+        const content = qrCode.value; // Use stored content
         if (qrCode.type === 'url') {
-          return res.redirect(301, content);
+          return res.redirect(302, content);
         }
-        // ... handle non-URL redirects
-        return res.redirect(301, content);
+        return res.redirect(302, content);
       }
     } catch (duplicateCheckError) {
       console.error("Duplicate check error:", duplicateCheckError);
-      // Continue with analytics recording if duplicate check fails
     }
 
     // =============================================
-    // RECORD ANALYTICS (Only if not duplicate)
+    // RECORD ANALYTICS
     // =============================================
     try {
       const { deviceType, browser, os } = parseUserAgent(userAgent);
       const country = await getCountryFromIP(ip);
 
-      // Insert scan record
       await db.query(
         `INSERT INTO scan_analytics 
          (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
@@ -180,7 +177,6 @@ app.get("/r/:slug", async (req, res) => {
         [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer]
       );
 
-      // Increment scan count (only once)
       await db.query(
         `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
         [qrCode.id]
@@ -189,20 +185,19 @@ app.get("/r/:slug", async (req, res) => {
       console.log(`✅ Scan recorded - Device: ${deviceType}, Browser: ${browser}, OS: ${os}, Country: ${country}`);
     } catch (analyticsError) {
       console.error("❌ Analytics error:", analyticsError);
-      // Continue with redirect even if analytics fails
     }
 
     // =============================================
-    // REDIRECT
+    // REDIRECT - USE THE STORED CONTENT
     // =============================================
-    const content = generateQRContent(qrCode.type, qrCode.value);
+    const content = qrCode.value; // ✅ Use stored content
 
     if (qrCode.type === 'url') {
       console.log(`🚀 Redirecting to: ${content}`);
-      return res.redirect(301, content);
+      return res.redirect(302, content);
     }
 
-    // For non-URL types, show landing page
+    // For non-URL types, show landing page with action button
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -214,7 +209,7 @@ app.get("/r/:slug", async (req, res) => {
           .card { background: white; border-radius: 20px; padding: 40px; max-width: 500px; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
           h1 { margin-top: 0; color: #333; }
           .type-badge { display: inline-block; background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin-bottom: 15px; }
-          .value { background: #f5f5f5; padding: 15px; border-radius: 10px; word-break: break-all; margin: 20px 0; }
+          .value { background: #f5f5f5; padding: 15px; border-radius: 10px; word-break: break-all; margin: 20px 0; font-size: 14px; }
           .btn { background: #667eea; color: white; border: none; padding: 12px 30px; border-radius: 10px; cursor: pointer; font-size: 16px; transition: transform 0.2s; }
           .btn:hover { transform: scale(1.05); }
           .btn:active { transform: scale(0.95); }
