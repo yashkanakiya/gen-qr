@@ -74,10 +74,23 @@ const initDatabase = async () => {
     )
   `;
 
-  try {
+  const createIndexes = `
+    CREATE INDEX IF NOT EXISTS idx_scan_analytics_qr_ip_time 
+    ON scan_analytics (qr_id, ip, scanned_at DESC);
+    
+    CREATE INDEX IF NOT EXISTS idx_scan_analytics_qr_id 
+    ON scan_analytics (qr_id);
+    
+    CREATE INDEX IF NOT EXISTS idx_qr_codes_user_id 
+    ON qr_codes (user_id);
+  `;
+
+
+   try {
     await pool.query(createUsersTable);
     await pool.query(createQRCodesTable);
     await pool.query(createScanAnalyticsTable);
+    await pool.query(createIndexes); // Add this line
     console.log("✅ PostgreSQL database initialized");
   } catch (error) {
     console.error("Database initialization error:", error);

@@ -458,6 +458,20 @@ const chartData = computed(() => {
   }
 })
 
+const getCleanRedirectUrl = (qr: QRCodeItem) => {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  // Remove /api from the base URL if present
+  const cleanBaseUrl = baseUrl.replace('/api', '')
+  return `${cleanBaseUrl}/r/${qr.slug}`
+}
+
+// Update the getRedirectUrl function in qrStore.ts to remove /api/
+export function getRedirectUrl(slug: string): string {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  const cleanBaseUrl = baseUrl.replace('/api', '')
+  return `${cleanBaseUrl}/r/${slug}`
+}
+
 onMounted(() => {
   loadData()
 })
@@ -621,6 +635,12 @@ onMounted(() => {
                   View Stats →
                 </button>
               </div>
+
+              <Column field="scan_count" header="Scans" class="text-sm text-center">
+                <template #body="{ data }">
+                  <span class="font-medium text-blue-600">{{ data.scan_count || 0 }}</span>
+                </template>
+              </Column>
               
               <div class="flex items-center gap-2">
                 <input
