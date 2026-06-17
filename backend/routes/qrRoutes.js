@@ -1,4 +1,4 @@
-// routes/qrRoutes.js
+// routes/qrRoutes.js - Updated
 import express from "express";
 import { dbOperations } from "../database/database.js";
 import { authenticate } from "../middleware/auth.js";
@@ -58,7 +58,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Name and value are required" });
     }
 
-    // Generate the QR content based on type (this is the ACTUAL data)
+    // Generate the QR content based on type
     let content;
     if (type === 'wifi') {
       content = generateQRContent(type, value, { encryption: wifiEncryption, password: wifiPassword });
@@ -75,18 +75,18 @@ router.post("/", async (req, res) => {
       errorCorrectionLevel: 'H'
     });
 
-    // Store the ACTUAL content in the database
+    // ✅ Store the actual content directly
     const newQRCode = await dbOperations.create(
       { 
         name, 
         type: type || 'url', 
-        value: content,  // ✅ Store actual content, NOT redirect URL
+        value: content,  // This is the ACTUAL content
         qrSrc 
       },
       req.userId
     );
     
-    console.log(`✅ QR Created - Slug: ${newQRCode.slug}, Content: ${newQRCode.value}`);
+    console.log(`✅ QR Created - Slug: ${newQRCode.slug}, Type: ${newQRCode.type}`);
     res.status(201).json(newQRCode);
   } catch (error) {
     console.error("Error creating QR code:", error);
@@ -112,7 +112,7 @@ router.put("/:id", async (req, res) => {
         content = generateQRContent(type || 'url', value);
       }
       
-      updates.value = content;  // ✅ Store actual content
+      updates.value = content;
       updates.qrSrc = await QRCode.toDataURL(content, {
         width: 500,
         margin: 2,
