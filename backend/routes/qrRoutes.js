@@ -1,6 +1,6 @@
-// routes/qrRoutes.js - Updated
+// routes/qrRoutes.js
 import express from "express";
-import { dbOperations } from "../database/database.js";
+import { dbOperations, generateSlug } from "../database/database.js";
 import { authenticate } from "../middleware/auth.js";
 import QRCode from "qrcode";
 import { generateQRContent } from "../utils/qrContentGenerator.js";
@@ -49,7 +49,7 @@ router.get("/:id/analytics", async (req, res) => {
   }
 });
 
-// Create new QR code
+// 🔧 CHANGED: Create new QR code – encode tracking URL in image
 router.post("/", async (req, res) => {
   try {
     const { name, type, value, wifiEncryption, wifiPassword } = req.body;
@@ -58,7 +58,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Name and value are required" });
     }
 
-    // Generate the QR content based on type
+    // 1. Generate the actual content (with scheme, e.g., mailto:, tel:, etc.)
     let content;
     if (type === 'wifi') {
       content = generateQRContent(type, value, { encryption: wifiEncryption, password: wifiPassword });
@@ -66,22 +66,30 @@ router.post("/", async (req, res) => {
       content = generateQRContent(type || 'url', value);
     }
 
-    console.log(`📝 Creating QR - Type: ${type}, Content: ${content}`);
+    // 2. Create a unique slug for this QR code
+    const slug = generateSlug();
 
-    // Generate QR code image with the ACTUAL content
-    const qrSrc = await QRCode.toDataURL(content, {
+    // 3. Build the tracking URL using the base URL (fallback to request host)
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const trackingUrl = `${baseUrl}/r/${slug}`;
+
+    console.log(`📝 Creating QR - Type: ${type}, Tracking URL: ${trackingUrl}`);
+
+    // 4. Generate QR code image from the tracking URL
+    const qrSrc = await QRCode.toDataURL(trackingUrl, {
       width: 500,
       margin: 2,
       errorCorrectionLevel: 'H'
     });
 
-    // ✅ Store the actual content directly
+    // 5. Store the QR code with the tracking image and the actual content
     const newQRCode = await dbOperations.create(
       { 
         name, 
         type: type || 'url', 
-        value: content,  // This is the ACTUAL content
-        qrSrc 
+        value: content,       // this is what /r/:slug will redirect to
+        qrSrc,
+        slug                  // pass the pre-generated slug
       },
       req.userId
     );
@@ -94,7 +102,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Update QR code
+// 🔧 CHANGED: Update QR code – do NOT regenerate QR image
 router.put("/:id", async (req, res) => {
   try {
     const { name, value, type, wifiEncryption, wifiPassword } = req.body;
@@ -104,20 +112,15 @@ router.put("/:id", async (req, res) => {
     if (type) updates.type = type;
     
     if (value) {
-      // Generate the ACTUAL content based on type
+      // Re-generate the actual content (with scheme) for the updated value
       let content;
       if (type === 'wifi') {
         content = generateQRContent(type, value, { encryption: wifiEncryption, password: wifiPassword });
       } else {
         content = generateQRContent(type || 'url', value);
       }
-      
       updates.value = content;
-      updates.qrSrc = await QRCode.toDataURL(content, {
-        width: 500,
-        margin: 2,
-        errorCorrectionLevel: 'H'
-      });
+      // Do NOT update qrSrc – the tracking URL remains the same
     }
 
     const updatedQRCode = await dbOperations.update(req.params.id, req.userId, updates);

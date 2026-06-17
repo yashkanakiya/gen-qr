@@ -85,12 +85,11 @@ const initDatabase = async () => {
     ON qr_codes (user_id);
   `;
 
-
-   try {
+  try {
     await pool.query(createUsersTable);
     await pool.query(createQRCodesTable);
     await pool.query(createScanAnalyticsTable);
-    await pool.query(createIndexes); // Add this line
+    await pool.query(createIndexes);
     console.log("✅ PostgreSQL database initialized");
   } catch (error) {
     console.error("Database initialization error:", error);
@@ -154,9 +153,10 @@ const dbOperations = {
     return result.rows[0];
   },
 
+  // 🔧 CHANGED: accept custom slug
   create: async (qrData, userId) => {
-    const { name, type, value, qrSrc } = qrData;
-    const slug = generateSlug();
+    const { name, type, value, qrSrc, slug: customSlug } = qrData;
+    const slug = customSlug || generateSlug();
     const result = await pool.query(
       `INSERT INTO qr_codes (slug, name, type, value, qr_src, user_id) 
        VALUES ($1, $2, $3, $4, $5, $6) 
@@ -203,7 +203,6 @@ const dbOperations = {
   },
 
   delete: async (id, userId) => {
-    // Delete analytics first (cascade will handle it, but explicit is fine)
     await pool.query(`DELETE FROM scan_analytics WHERE qr_id = $1`, [id]);
     await pool.query(`DELETE FROM qr_codes WHERE id = $1 AND user_id = $2`, [id, userId]);
     return true;
@@ -281,4 +280,5 @@ const dbOperations = {
   }
 };
 
-export { pool as db, initDatabase, dbOperations };
+// 🔧 EXPORT generateSlug so it can be used elsewhere
+export { pool as db, initDatabase, dbOperations, generateSlug };
