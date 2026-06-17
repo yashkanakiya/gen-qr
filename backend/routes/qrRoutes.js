@@ -1,4 +1,4 @@
-// routes/qrRoutes.js - Updated
+// routes/qrRoutes.js
 import express from "express";
 import { dbOperations } from "../database/database.js";
 import { authenticate } from "../middleware/auth.js";
@@ -49,7 +49,9 @@ router.get("/:id/analytics", async (req, res) => {
   }
 });
 
-// Create new QR code
+// ------------------------------------------------
+// CREATE QR CODE – Fixed to generate tracking URL
+// ------------------------------------------------
 router.post("/", async (req, res) => {
   try {
     const { name, type, value, wifiEncryption, wifiPassword } = req.body;
@@ -58,7 +60,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Name and value are required" });
     }
 
-    // Generate the QR content based on type
+    // Generate the QR content based on type (this is what will be stored as the target)
     let content;
     if (type === 'wifi') {
       content = generateQRContent(type, value, { encryption: wifiEncryption, password: wifiPassword });
@@ -68,33 +70,44 @@ router.post("/", async (req, res) => {
 
     console.log(`📝 Creating QR - Type: ${type}, Content: ${content}`);
 
-    // Generate QR code image with the ACTUAL content
-    const qrSrc = await QRCode.toDataURL(content, {
+    // 1. Insert the record first – generate a placeholder QR (will be replaced)
+    const newQRCode = await dbOperations.create(
+      { 
+        name, 
+        type: type || 'url', 
+        value: content,         // store the actual target content
+        qrSrc: ''              // placeholder, will be updated
+      },
+      req.userId
+    );
+
+    // 2. Build the tracking URL using the slug from the newly created record
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const trackingUrl = `${baseUrl}/r/${newQRCode.slug}`;
+
+    console.log(`🔗 Tracking URL: ${trackingUrl}`);
+
+    // 3. Generate QR code from the tracking URL
+    const qrSrc = await QRCode.toDataURL(trackingUrl, {
       width: 500,
       margin: 2,
       errorCorrectionLevel: 'H'
     });
 
-    // ✅ Store the actual content directly
-    const newQRCode = await dbOperations.create(
-      { 
-        name, 
-        type: type || 'url', 
-        value: content,  // This is the ACTUAL content
-        qrSrc 
-      },
-      req.userId
-    );
-    
+    // 4. Update the record with the actual QR image
+    const updatedQR = await dbOperations.update(newQRCode.id, req.userId, { qrSrc });
+
     console.log(`✅ QR Created - Slug: ${newQRCode.slug}, Type: ${newQRCode.type}`);
-    res.status(201).json(newQRCode);
+    res.status(201).json(updatedQR);
   } catch (error) {
     console.error("Error creating QR code:", error);
     res.status(500).json({ error: "Failed to create QR code" });
   }
 });
 
-// Update QR code
+// ------------------------------------------------
+// UPDATE QR CODE – Fixed to re‑generate tracking URL
+// ------------------------------------------------
 router.put("/:id", async (req, res) => {
   try {
     const { name, value, type, wifiEncryption, wifiPassword } = req.body;
@@ -103,23 +116,37 @@ router.put("/:id", async (req, res) => {
     if (name) updates.name = name;
     if (type) updates.type = type;
     
-    if (value) {
-      // Generate the ACTUAL content based on type
-      let content;
-      if (type === 'wifi') {
-        content = generateQRContent(type, value, { encryption: wifiEncryption, password: wifiPassword });
-      } else {
-        content = generateQRContent(type || 'url', value);
+    // If value or type changes, we need to update the stored content and re‑generate QR
+    if (value || type) {
+      // Get current QR to access its slug
+      const existing = await dbOperations.getById(req.params.id, req.userId);
+      if (!existing) {
+        return res.status(404).json({ error: "QR code not found" });
       }
-      
+
+      // Generate the new content based on the provided type/value
+      const effectiveType = type || existing.type;
+      const effectiveValue = value || existing.value;
+      let content;
+      if (effectiveType === 'wifi') {
+        content = generateQRContent(effectiveType, effectiveValue, { encryption: wifiEncryption, password: wifiPassword });
+      } else {
+        content = generateQRContent(effectiveType, effectiveValue);
+      }
+
       updates.value = content;
-      updates.qrSrc = await QRCode.toDataURL(content, {
+
+      // Re‑generate QR using the same slug
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const trackingUrl = `${baseUrl}/r/${existing.slug}`;
+      updates.qrSrc = await QRCode.toDataURL(trackingUrl, {
         width: 500,
         margin: 2,
         errorCorrectionLevel: 'H'
       });
     }
 
+    // If only name changes, just update the name (no QR regeneration)
     const updatedQRCode = await dbOperations.update(req.params.id, req.userId, updates);
     if (!updatedQRCode) return res.status(404).json({ error: "QR code not found" });
     res.json(updatedQRCode);
