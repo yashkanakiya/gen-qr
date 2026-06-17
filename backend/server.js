@@ -12,16 +12,12 @@ import { generateQRContent } from "./utils/qrContentGenerator.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// app.use(cors({
-//   origin: 'http://localhost:5173',
-//   credentials: true
-// }));
-// Middleware
+// CORS configuration
 app.use(cors({
   origin: [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'https://gen-qr-five.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://gen-qr-five.vercel.app',
     process.env.FRONTEND_URL
   ].filter(Boolean),
   credentials: true
@@ -43,7 +39,6 @@ const parseUserAgent = (userAgent) => {
   let browser = 'Unknown';
   let os = 'Unknown';
 
-  // Detect OS first (order matters!)
   if (ua.includes('Windows')) os = 'Windows';
   else if (ua.includes('Mac OS') || ua.includes('Macintosh')) os = 'macOS';
   else if (ua.includes('Linux') && !ua.includes('Android')) os = 'Linux';
@@ -51,7 +46,6 @@ const parseUserAgent = (userAgent) => {
   else if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad') || ua.includes('iPod')) os = 'iOS';
   else if (ua.includes('CrOS')) os = 'ChromeOS';
 
-  // Detect device type
   if (ua.includes('iPhone') || ua.includes('iPod')) {
     deviceType = 'Mobile';
   } else if (ua.includes('iPad')) {
@@ -66,7 +60,6 @@ const parseUserAgent = (userAgent) => {
     deviceType = 'Desktop';
   }
 
-  // Detect browser
   if (ua.includes('Chrome') && !ua.includes('Edg') && !ua.includes('OPR')) {
     browser = 'Chrome';
   } else if (ua.includes('Firefox')) {
@@ -98,61 +91,63 @@ const getCountryFromIP = async (ip) => {
   }
 };
 
-// =============================================
-// ANALYTICS TRACKING ROUTE - For QR scans
-// =============================================
+// ============================================================
+//  TRACKING ROUTE – only tracks on GET requests
+// ============================================================
 app.get("/api/track/:slug", async (req, res) => {
   const { slug } = req.params;
-  console.log(`📊 Track request for slug: ${slug}`);
+  console.log(`📊 Track request for slug: ${slug} (${req.method})`);
 
   try {
     const qrCode = await dbOperations.getBySlug(slug);
-
     if (!qrCode) {
       console.log(`❌ QR Code not found: ${slug}`);
       return res.status(404).json({ error: "QR code not found" });
     }
 
-    // Get client info
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-               req.headers['cf-connecting-ip'] ||
-               req.headers['x-real-ip'] ||
-               req.socket?.remoteAddress || 
-               req.connection?.remoteAddress || 
-               'unknown';
-    
-    const userAgent = req.headers['user-agent'] || '';
-    const referer = req.headers.referer || req.headers.referrer || '';
+    // Only record analytics for GET requests (ignore HEAD, etc.)
+    if (req.method === 'GET') {
+      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                 req.headers['cf-connecting-ip'] ||
+                 req.headers['x-real-ip'] ||
+                 req.socket?.remoteAddress || 
+                 req.connection?.remoteAddress || 
+                 'unknown';
+      
+      const userAgent = req.headers['user-agent'] || '';
+      const referer = req.headers.referer || req.headers.referrer || '';
 
-    // Check for duplicate within 5 seconds
-    const recentScan = await db.query(
-      `SELECT id FROM scan_analytics 
-       WHERE qr_id = $1 AND ip = $2 AND scanned_at > NOW() - INTERVAL '5 seconds'`,
-      [qrCode.id, ip]
-    );
-
-    if (recentScan.rows.length === 0) {
-      const { deviceType, browser, os } = parseUserAgent(userAgent);
-      const country = await getCountryFromIP(ip);
-
-      await db.query(
-        `INSERT INTO scan_analytics 
-         (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
-        [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer]
+      // Check for duplicate within 30 seconds
+      const recentScan = await db.query(
+        `SELECT id FROM scan_analytics 
+         WHERE qr_id = $1 AND ip = $2 AND scanned_at > NOW() - INTERVAL '30 seconds'`,
+        [qrCode.id, ip]
       );
 
-      await db.query(
-        `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
-        [qrCode.id]
-      );
+      if (recentScan.rows.length === 0) {
+        const { deviceType, browser, os } = parseUserAgent(userAgent);
+        const country = await getCountryFromIP(ip);
 
-      console.log(`✅ Scan recorded - IP: ${ip}, Device: ${deviceType}`);
+        await db.query(
+          `INSERT INTO scan_analytics 
+           (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
+          [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer]
+        );
+
+        await db.query(
+          `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
+          [qrCode.id]
+        );
+
+        console.log(`✅ Scan recorded - IP: ${ip}, Device: ${deviceType}`);
+      } else {
+        console.log(`⏭️ Duplicate scan detected for IP ${ip} (within 30s)`);
+      }
     } else {
-      console.log(`⏭️ Duplicate scan detected for IP ${ip}`);
+      console.log(`⏭️ Skipping tracking for non-GET request (${req.method})`);
     }
 
-    // Return success with the QR content
     res.json({ 
       success: true, 
       type: qrCode.type, 
@@ -164,16 +159,15 @@ app.get("/api/track/:slug", async (req, res) => {
   }
 });
 
-// =============================================
-// PUBLIC REDIRECT ROUTE - NO AUTH REQUIRED
-// =============================================
+// ============================================================
+//  PUBLIC REDIRECT ROUTE – only tracks on GET requests
+// ============================================================
 app.get("/r/:slug", async (req, res) => {
   const { slug } = req.params;
-  console.log(`🔍 Redirect request for slug: ${slug}`);
+  console.log(`🔍 Redirect request for slug: ${slug} (${req.method})`);
 
   try {
     const qrCode = await dbOperations.getBySlug(slug);
-
     if (!qrCode) {
       console.log(`❌ QR Code not found: ${slug}`);
       return res.status(404).send(`
@@ -202,51 +196,54 @@ app.get("/r/:slug", async (req, res) => {
     console.log(`✅ Found QR: ${qrCode.name} (ID: ${qrCode.id})`);
     console.log(`📝 Type: ${qrCode.type}, Content: ${qrCode.value}`);
 
-    // Track the scan for all types
-    try {
-      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-                 req.headers['cf-connecting-ip'] ||
-                 req.headers['x-real-ip'] ||
-                 req.socket?.remoteAddress || 
-                 req.connection?.remoteAddress || 
-                 'unknown';
-      
-      const userAgent = req.headers['user-agent'] || '';
-      const referer = req.headers.referer || req.headers.referrer || '';
+    // ---- TRACKING: only on GET requests ----
+    if (req.method === 'GET') {
+      try {
+        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                   req.headers['cf-connecting-ip'] ||
+                   req.headers['x-real-ip'] ||
+                   req.socket?.remoteAddress || 
+                   req.connection?.remoteAddress || 
+                   'unknown';
+        
+        const userAgent = req.headers['user-agent'] || '';
+        const referer = req.headers.referer || req.headers.referrer || '';
 
-      // Check for duplicate within 5 seconds
-      const recentScan = await db.query(
-        `SELECT id FROM scan_analytics 
-         WHERE qr_id = $1 AND ip = $2 AND scanned_at > NOW() - INTERVAL '5 seconds'`,
-        [qrCode.id, ip]
-      );
-
-      if (recentScan.rows.length === 0) {
-        const { deviceType, browser, os } = parseUserAgent(userAgent);
-        const country = await getCountryFromIP(ip);
-
-        await db.query(
-          `INSERT INTO scan_analytics 
-           (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
-          [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer]
+        const recentScan = await db.query(
+          `SELECT id FROM scan_analytics 
+           WHERE qr_id = $1 AND ip = $2 AND scanned_at > NOW() - INTERVAL '30 seconds'`,
+          [qrCode.id, ip]
         );
 
-        await db.query(
-          `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
-          [qrCode.id]
-        );
+        if (recentScan.rows.length === 0) {
+          const { deviceType, browser, os } = parseUserAgent(userAgent);
+          const country = await getCountryFromIP(ip);
 
-        console.log(`✅ Scan recorded - IP: ${ip}, Device: ${deviceType}`);
-      } else {
-        console.log(`⏭️ Duplicate scan detected for IP ${ip}`);
+          await db.query(
+            `INSERT INTO scan_analytics 
+             (qr_id, ip, user_agent, country, device_type, browser, os, referer, scanned_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
+            [qrCode.id, ip, userAgent, country, deviceType, browser, os, referer]
+          );
+
+          await db.query(
+            `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
+            [qrCode.id]
+          );
+
+          console.log(`✅ Scan recorded - IP: ${ip}, Device: ${deviceType}`);
+        } else {
+          console.log(`⏭️ Duplicate scan detected for IP ${ip} (within 30s)`);
+        }
+      } catch (trackError) {
+        console.error("❌ Tracking error:", trackError);
+        // Continue with redirect even if tracking fails
       }
-    } catch (trackError) {
-      console.error("❌ Tracking error:", trackError);
-      // Continue with redirect even if tracking fails
+    } else {
+      console.log(`⏭️ Skipping tracking for non-GET request (${req.method})`);
     }
 
-    // Redirect to the actual content
+    // ---- Redirect or show landing page ----
     const content = qrCode.value;
     
     if (qrCode.type === 'url') {
@@ -309,9 +306,9 @@ app.get("/r/:slug", async (req, res) => {
   }
 });
 
-// =============================================
-// DEBUG ROUTE - Check scan analytics
-// =============================================
+// ============================================================
+//  DEBUG ROUTE (optional)
+// ============================================================
 app.get("/api/debug/scan/:slug", async (req, res) => {
   const { slug } = req.params;
   try {
@@ -320,7 +317,6 @@ app.get("/api/debug/scan/:slug", async (req, res) => {
       return res.status(404).json({ error: "QR not found" });
     }
     
-    // Get all scans for this QR
     const scans = await db.query(
       `SELECT * FROM scan_analytics WHERE qr_id = $1 ORDER BY scanned_at DESC LIMIT 10`,
       [qrCode.id]
@@ -336,9 +332,9 @@ app.get("/api/debug/scan/:slug", async (req, res) => {
   }
 });
 
-// =============================================
-// PROTECTED ROUTES (require authentication)
-// =============================================
+// ============================================================
+//  PROTECTED ROUTES
+// ============================================================
 app.use("/api/auth", authRoutes);
 app.use("/api/qrcodes", qrRoutes);
 
@@ -353,7 +349,9 @@ app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
-// Initialize database and start server
+// ============================================================
+//  START SERVER
+// ============================================================
 const startServer = async () => {
   try {
     await initDatabase();
