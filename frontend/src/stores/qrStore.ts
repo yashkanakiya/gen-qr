@@ -97,6 +97,11 @@ export async function getQRCodeById(id: string): Promise<QRCodeItem> {
 export async function getQRCodeAnalytics(id: string): Promise<ScanAnalytics> {
   try {
     const response = await api.get<ScanAnalytics>(`/qrcodes/${id}/analytics`)
+    // Update the scan_count in the local array
+    const qr = qrCodes.value.find(q => q.id === id)
+    if (qr && response.data.total_scans !== undefined) {
+      qr.scan_count = response.data.total_scans
+    }
     return response.data
   } catch (error) {
     throw handleApiError(error)
@@ -162,7 +167,6 @@ export async function refreshQRCodes(): Promise<QRCodeItem[]> {
 
 export function getRedirectUrl(slug: string): string {
   const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-  // Remove '/api' from the base URL if it's included
   const baseUrl = apiBaseUrl.replace('/api', '')
   return `${baseUrl}/r/${slug}`
 }

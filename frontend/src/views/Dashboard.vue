@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import DataTable from 'primevue/datatable'
@@ -459,7 +459,20 @@ const chartData = computed(() => {
 })
 
 onMounted(() => {
-  loadData()
+    loadData()
+  // Refresh QR codes every 30 seconds to update scan counts
+  refreshInterval = setInterval(() => {
+    if (!isLoading.value) {
+      loadData()
+    }
+  }, 30000)
+})
+
+onBeforeUnmount(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
 })
 </script>
 
