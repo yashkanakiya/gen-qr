@@ -2,13 +2,14 @@
 import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
 import Menu from 'primevue/menu'
-import Button from 'primevue/button'
+import Skeleton from 'primevue/skeleton'
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
 import { qrCodes, loadQRCodes, deleteQRCode, getQRCodeAnalytics, getRedirectUrl, type QRCodeItem, type ScanAnalytics } from '../stores/qrStore'
+import DashboardStats from '../components/dashboard/DashboardStats.vue'
+import DashboardFilter from '../components/dashboard/DashboardFilter.vue'
+import DashboardTable from '../components/dashboard/DashboardTable.vue'
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
 
@@ -37,6 +38,7 @@ const currentPage = ref(1)
 const rowsPerPage = ref(5)
 const rowsPerPageOptions = [5, 10, 20]
 
+// QR type mapping
 const qrTypesMap: Record<string, { label: string; icon: string; color: string }> = {
   url: { label: 'URL', icon: 'pi pi-globe', color: 'blue' },
   text: { label: 'Text', icon: 'pi pi-file', color: 'gray' },
@@ -47,6 +49,7 @@ const qrTypesMap: Record<string, { label: string; icon: string; color: string }>
   location: { label: 'Location', icon: 'pi pi-map-marker', color: 'red' }
 }
 
+// Helper functions
 const getIconColorClass = (color: string | undefined) => {
   switch (color) {
     case 'blue': return 'text-blue-500'
@@ -112,9 +115,7 @@ const copyToClipboard = async (text: string) => {
   }
 }
 
-const getQRCodeLink = (qr: QRCodeItem) => {
-  return getRedirectUrl(qr.slug)
-}
+const getQRCodeLink = (qr: QRCodeItem) => getRedirectUrl(qr.slug)
 
 const loadData = async () => {
   isLoading.value = true
@@ -132,18 +133,31 @@ const loadData = async () => {
   }
 }
 
-// Filtered QR codes based on search query (case-insensitive name match)
+// Computed stats
+const totalQr = computed(() => qrCodes.value.length)
+const totalScans = computed(() => qrCodes.value.reduce((sum, qr) => sum + (qr.scan_count || 0), 0))
+const lastCreated = computed(() => {
+  if (qrCodes.value.length === 0) return 'None'
+  const sorted = [...qrCodes.value].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  return formatDate(sorted[0]?.created_at || '')
+})
+const typesCount = computed(() => {
+  const types = new Set(qrCodes.value.map(qr => qr.type))
+  return types.size
+})
+
+// Filtered QR codes
 const filteredQRCodes = computed(() => {
   if (!searchQuery.value.trim()) return qrCodes.value
   const query = searchQuery.value.toLowerCase().trim()
   return qrCodes.value.filter(qr => qr.name.toLowerCase().includes(query))
 })
 
-// Reset pagination when search changes
 watch(searchQuery, () => {
   currentPage.value = 1
 })
 
+// Actions
 const confirmDelete = (qr: QRCodeItem) => {
   selectedQR.value = qr
   deleteModalVisible.value = true
@@ -210,10 +224,11 @@ const refreshAnalytics = async () => {
   }
 }
 
-let refreshInterval: NodeJS.Timeout | null = null
+// Auto-refresh for analytics modal (every 5s)
+let analyticsRefreshInterval: NodeJS.Timeout | null = null
 watch(analyticsModalVisible, (isVisible) => {
   if (isVisible) {
-    refreshInterval = setInterval(() => {
+    analyticsRefreshInterval = setInterval(() => {
       if (selectedQR.value && analyticsModalVisible.value) {
         getQRCodeAnalytics(selectedQR.value.id).then(data => {
           selectedAnalytics.value = data
@@ -223,19 +238,15 @@ watch(analyticsModalVisible, (isVisible) => {
       }
     }, 5000)
   } else {
-    if (refreshInterval) {
-      clearInterval(refreshInterval)
-      refreshInterval = null
+    if (analyticsRefreshInterval) {
+      clearInterval(analyticsRefreshInterval)
+      analyticsRefreshInterval = null
     }
   }
 })
 
 const editQR = (qr: QRCodeItem) => {
   router.push(`/edit-qr/${qr.id}`)
-}
-
-const createNew = () => {
-  router.push('/create-qr')
 }
 
 const showViewModal = (qr: QRCodeItem) => {
@@ -273,34 +284,15 @@ const toggleActionMenu = (event: Event, qr: QRCodeItem, isMobile = false) => {
   }
 }
 
-// Pagination helpers for mobile cards (using filtered list)
-const paginatedQRCodes = computed(() => {
-  const start = (currentPage.value - 1) * rowsPerPage.value
-  const end = start + rowsPerPage.value
-  return filteredQRCodes.value.slice(start, end)
-})
-
-const totalPages = computed(() => Math.ceil(filteredQRCodes.value.length / rowsPerPage.value))
-
 const changePage = (page: number) => {
   currentPage.value = page
 }
-
-const getChartData = computed(() => {
-  if (!selectedAnalytics.value?.scans_by_day) return []
-  return selectedAnalytics.value.scans_by_day.slice().reverse()
-})
-
-const getMaxScans = computed(() => {
-  const scans = getChartData.value.map(d => d.count)
-  return Math.max(...scans, 1)
-})
 
 const clearSearch = () => {
   searchQuery.value = ''
 }
 
-// Download QR Code functions
+// Download QR
 async function downloadQR(format: 'png' | 'jpg' | 'svg') {
   if (!viewSelectedQR.value || !viewSelectedQR.value.qrSrc) {
     toast.add({
@@ -316,17 +308,13 @@ async function downloadQR(format: 'png' | 'jpg' | 'svg') {
   const filename = `${viewSelectedQR.value.name.replace(/[^a-z0-9]/gi, '_') || 'qrcode'}.${format}`
 
   try {
-    // Since we have the QR code as a data URL from the qrSrc property,
-    // we can directly use it for PNG and JPG downloads
     if (format === 'png' || format === 'jpg') {
       const link = document.createElement('a')
       link.download = filename
       
-      // For PNG, we can use the existing data URL
       if (format === 'png') {
         link.href = viewSelectedQR.value.qrSrc
       } else {
-        // For JPG, we need to convert the image to JPEG
         const img = new Image()
         img.onload = () => {
           const canvas = document.createElement('canvas')
@@ -342,7 +330,6 @@ async function downloadQR(format: 'png' | 'jpg' | 'svg') {
           }
         }
         img.src = viewSelectedQR.value!.qrSrc
-        // If the image is already loaded, handle it
         if (img.complete) {
           img.onload?.(new Event('load'))
         }
@@ -357,9 +344,6 @@ async function downloadQR(format: 'png' | 'jpg' | 'svg') {
       }
       link.click()
     } else if (format === 'svg') {
-      // For SVG, we need to generate it from the QR content
-      // Since we don't have the raw content stored, we'll use the QR code data
-      // as an embedded image in SVG
       const svgContent = `
         <svg xmlns="http://www.w3.org/2000/svg" width="${downloadQRSize.value}" height="${downloadQRSize.value}" viewBox="0 0 ${downloadQRSize.value} ${downloadQRSize.value}">
           <rect width="100%" height="100%" fill="white"/>
@@ -393,38 +377,20 @@ async function downloadQR(format: 'png' | 'jpg' | 'svg') {
   }
 }
 
-// Alternative: Generate QR code from stored content if available
-async function downloadQRFromContent(format: 'png' | 'jpg' | 'svg') {
-  if (!viewSelectedQR.value) return
-  
-  downloadLoading.value = true
-  const filename = `${viewSelectedQR.value.name.replace(/[^a-z0-9]/gi, '_') || 'qrcode'}.${format}`
+// Chart data for analytics – **fixed to avoid slice error**
+const getChartData = computed(() => {
+  if (!selectedAnalytics.value?.scans_by_day) return []
+  // Ensure it's an array before slice
+  const days = selectedAnalytics.value.scans_by_day
+  if (!Array.isArray(days)) return []
+  return days.slice().reverse()
+})
 
-  try {
-    // If we have the stored content, we can regenerate the QR code
-    // Note: This assumes you have a way to get the raw content
-    // Since we don't have it in the current structure, we use the existing qrSrc
-    await downloadQR(format)
-  } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Download Failed',
-      detail: 'Failed to download QR code',
-      life: 3000
-    })
-  } finally {
-    downloadLoading.value = false
-  }
-}
-
-// Chart options
 const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: {
-      display: false
-    },
+    legend: { display: false },
     tooltip: {
       callbacks: {
         label: (context: any) => `${context.parsed.y} scans`
@@ -434,20 +400,15 @@ const chartOptions = computed(() => ({
   scales: {
     y: {
       beginAtZero: true,
-      ticks: {
-        stepSize: 1
-      }
+      ticks: { stepSize: 1 }
     }
   }
 }))
 
 const chartData = computed(() => {
-  const days = getChartData.value.slice(-7) // Last 7 days
+  const days = getChartData.value.slice(-7)
   return {
-    labels: days.map(d => {
-      const date = new Date(d.date)
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    }),
+    labels: days.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
     datasets: [{
       data: days.map(d => d.count),
       backgroundColor: 'rgba(59, 130, 246, 0.7)',
@@ -458,20 +419,15 @@ const chartData = computed(() => {
   }
 })
 
+// Lifecycle – load data once
 onMounted(() => {
-    loadData()
-  // Refresh QR codes every 30 seconds to update scan counts
-  refreshInterval = setInterval(() => {
-    if (!isLoading.value) {
-      loadData()
-    }
-  }, 30000)
+  loadData()
 })
 
 onBeforeUnmount(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-    refreshInterval = null
+  if (analyticsRefreshInterval) {
+    clearInterval(analyticsRefreshInterval)
+    analyticsRefreshInterval = null
   }
 })
 </script>
@@ -483,209 +439,54 @@ onBeforeUnmount(() => {
       <div class="mb-6 sm:mb-8">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 class="text-2xl sm:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              My QR Codes
-            </h1>
-            <p class="text-gray-600 mt-1 text-sm sm:text-base">Manage and track your QR codes</p>
+            <div v-if="isLoading">
+              <Skeleton width="12rem" height="2rem" class="mb-1" />
+              <Skeleton width="16rem" height="1.5rem" />
+            </div>
+            <template v-else>
+              <h1 class="text-2xl sm:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                My QR Codes
+              </h1>
+              <p class="text-gray-600 mt-1 text-sm sm:text-base">Manage and track your QR codes</p>
+            </template>
           </div>
-          <button
-            @click="createNew"
-            class="w-full sm:w-auto px-4 py-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-sm flex items-center justify-center gap-2 text-sm sm:text-base"
-          >
-            <i class="pi pi-plus"></i> Create QR Code
-          </button>
         </div>
         
-        <!-- Search Bar -->
+        <!-- Filter -->
         <div class="mt-4">
-          <div class="relative max-w-md">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-              <i class="pi pi-search text-gray-400 text-sm"></i>
-            </span>
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Search by name..."
-              class="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-200 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 bg-white shadow-sm"
-            />
-            <button
-              v-if="searchQuery"
-              @click="clearSearch"
-              class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <i class="pi pi-times-circle text-sm"></i>
-            </button>
-          </div>
+          <DashboardFilter
+            v-model="searchQuery"
+            :loading="isLoading"
+            @clear="clearSearch"
+          />
         </div>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="isLoading" class="flex justify-center items-center py-20">
-        <i class="pi pi-spin pi-spinner text-4xl text-blue-500"></i>
-      </div>
+      <!-- Stats Cards -->
+      <DashboardStats
+        :total-qr="totalQr"
+        :total-scans="totalScans"
+        :last-created="lastCreated"
+        :types-count="typesCount"
+        :loading="isLoading"
+      />
 
-      <!-- Data Display -->
-      <div v-else>
-        <!-- Desktop Table View -->
-        <div class="hidden sm:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div class="overflow-x-auto">
-            <DataTable
-              :value="filteredQRCodes"
-              :paginator="true"
-              :rows="rowsPerPage"
-              :rowsPerPageOptions="rowsPerPageOptions"
-              stripedRows
-              tableClass="w-full min-w-[500px]"
-              paginatorClass="p-4 border-t border-gray-100 custom-paginator"
-            >
-              <Column field="created_at" header="Created At" class="text-sm">
-                <template #body="{ data }">
-                  <span class="text-gray-700 text-xs sm:text-sm">{{ formatDate(data.created_at) }}</span>
-                </template>
-              </Column>
-
-              <Column header="QR Code" class="text-center">
-                <template #body="{ data }">
-                  <img :src="data.qrSrc" :alt="data.name" class="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-lg bg-gray-50 p-1" />
-                </template>
-              </Column>
-
-              <Column field="name" header="Name" class="text-sm">
-                <template #body="{ data }">
-                  <div class="flex items-center gap-2">
-                    <i :class="[qrTypesMap[data.type]?.icon || 'pi pi-qrcode', getIconColorClass(qrTypesMap[data.type]?.color)]" class="text-xs sm:text-sm"></i>
-                    <span class="font-medium text-gray-800 text-sm sm:text-base">{{ data.name }}</span>
-                  </div>
-                </template>
-              </Column>
-
-              <Column header="Actions" class="text-center w-20">
-                <template #body="{ data }">
-                  <Button
-                    icon="pi pi-ellipsis-v"
-                    class="p-button-rounded p-button-text p-button-sm action-dots-btn"
-                    @click="toggleActionMenu($event, data)"
-                    aria-haspopup="true"
-                    aria-controls="action_menu"
-                  />
-                </template>
-              </Column>
-
-              <template #empty>
-                <div class="text-center py-12">
-                  <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="pi pi-search text-2xl text-gray-400"></i>
-                  </div>
-                  <h3 class="text-lg font-semibold text-gray-900 mb-2">No matching QR codes</h3>
-                  <p class="text-gray-600 mb-4">Try a different search term or clear the filter</p>
-                  <button
-                    @click="clearSearch"
-                    class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all"
-                  >
-                    Clear Search
-                  </button>
-                </div>
-              </template>
-            </DataTable>
-          </div>
-        </div>
-
-        <!-- Mobile Card View -->
-        <div class="block sm:hidden space-y-4">
-          <div
-            v-for="qr in paginatedQRCodes"
-            :key="qr.id"
-            class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
-          >
-            <div class="flex items-center p-4 gap-4 border-b border-gray-100">
-              <div class="bg-gray-50 p-2 rounded-lg">
-                <img :src="qr.qrSrc" :alt="qr.name" class="w-16 h-16 object-contain" />
-              </div>
-              <div class="flex-1">
-                <div class="flex items-center gap-2 mb-1">
-                  <i :class="[qrTypesMap[qr.type]?.icon || 'pi pi-qrcode', getIconColorClass(qrTypesMap[qr.type]?.color)]" class="text-sm"></i>
-                  <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
-                    {{ qrTypesMap[qr.type]?.label || qr.type }}
-                  </span>
-                </div>
-                <h3 class="font-semibold text-gray-900 text-base">{{ qr.name }}</h3>
-                <p class="text-xs text-gray-500">{{ formatDate(qr.created_at) }}</p>
-              </div>
-              <Button
-                icon="pi pi-ellipsis-v"
-                class="p-button-rounded p-button-text p-button-sm action-dots-btn"
-                @click="toggleActionMenu($event, qr, true)"
-                aria-haspopup="true"
-                aria-controls="mobile_action_menu"
-              />
-            </div>
-            
-            <!-- Stats and link row -->
-            <div class="p-4 space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <i class="pi pi-chart-line text-gray-400"></i>
-                  <span class="text-sm text-gray-600">{{ qr.scan_count || 0 }} scans</span>
-                </div>
-                <button
-                  @click="viewAnalytics(qr)"
-                  class="text-blue-500 hover:text-blue-600 text-sm font-medium"
-                >
-                  View Stats →
-                </button>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <input
-                  :value="getQRCodeLink(qr)"
-                  type="text"
-                  readonly
-                  class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate"
-                />
-                <button
-                  @click="copyToClipboard(getQRCodeLink(qr))"
-                  class="p-2 text-gray-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100"
-                >
-                  <i class="pi pi-copy"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Mobile Pagination -->
-          <div v-if="filteredQRCodes.length > 0" class="flex justify-between items-center mt-4 pb-4">
-            <button
-              @click="changePage(currentPage - 1)"
-              :disabled="currentPage === 1"
-              class="px-3 py-1 rounded-lg border border-gray-300 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Previous
-            </button>
-            <span class="text-sm text-gray-600">Page {{ currentPage }} of {{ totalPages }}</span>
-            <button
-              @click="changePage(currentPage + 1)"
-              :disabled="currentPage === totalPages"
-              class="px-3 py-1 rounded-lg border border-gray-300 text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Next
-            </button>
-          </div>
-          
-          <div v-if="filteredQRCodes.length === 0 && !isLoading" class="text-center py-12 bg-white rounded-xl">
-            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <i class="pi pi-search text-2xl text-gray-400"></i>
-            </div>
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">No matching QR codes</h3>
-            <p class="text-gray-600 mb-4">Try a different search term or clear the filter</p>
-            <button
-              @click="clearSearch"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all"
-            >
-              Clear Search
-            </button>
-          </div>
-        </div>
-      </div>
+      <!-- Table -->
+      <DashboardTable
+        :qr-codes="filteredQRCodes"
+        :loading="isLoading"
+        :rows-per-page="rowsPerPage"
+        :rows-per-page-options="rowsPerPageOptions"
+        :current-page="currentPage"
+        :qr-types-map="qrTypesMap"
+        :get-icon-color-class="getIconColorClass"
+        :format-date="formatDate"
+        @toggle-action="toggleActionMenu"
+        @view-analytics="viewAnalytics"
+        @copy="copyToClipboard"
+        @clear-search="clearSearch"
+        @page-change="changePage"
+      />
 
       <!-- Action Menus -->
       <Menu ref="actionMenu" :model="actionMenuItems" popup id="action_menu" />
@@ -704,27 +505,26 @@ onBeforeUnmount(() => {
             </p>
           </div>
           <div class="flex gap-3 p-4 border-t border-gray-100">
-            <button @click="deleteModalVisible = false" class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium text-sm">
+            <button @click="deleteModalVisible = false" class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium text-sm cursor-pointer">
               Cancel
             </button>
-            <button @click="handleDelete" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium text-sm">
+            <button @click="handleDelete" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium text-sm cursor-pointer">
               Delete
             </button>
           </div>
         </div>
       </div>
 
-      <!-- View QR Card Modal -->
-      <div v-if="viewModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="viewModalVisible = false">
-        <div class="bg-white rounded-xl w-full max-w-md shadow-2xl animate-fade-in mx-4">
-          <div class="relative bg-gray-50 p-4 sm:p-6 flex justify-center border-b border-gray-100">
-            <img :src="viewSelectedQR?.qrSrc" alt="QR Code" class="w-32 h-32 sm:w-40 sm:h-40 object-contain" />
-            <button @click="viewModalVisible = false" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors">
-              <i class="pi pi-times text-xl"></i>
-            </button>
-          </div>
-          
-          <div class="p-4 sm:p-5">
+      <!-- View QR Modal -->
+        <div v-if="viewModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="viewModalVisible = false">
+          <div class="bg-white rounded-xl w-full max-w-md shadow-2xl animate-fade-in mx-4">
+            <div class="relative bg-gray-50 p-4 sm:p-6 flex justify-center border-b border-gray-100">
+              <img :src="viewSelectedQR?.qrSrc" alt="QR Code" class="w-32 h-32 sm:w-40 sm:h-40 object-contain" />
+              <button @click="viewModalVisible = false" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                <i class="pi pi-times text-xl"></i>
+              </button>
+            </div>
+            <div class="p-4 sm:p-5">
             <div class="flex items-start justify-between mb-3">
               <div>
                 <div class="flex items-center gap-2 mb-1">
@@ -737,7 +537,6 @@ onBeforeUnmount(() => {
                 <p class="text-xs text-gray-500 mt-1">{{ formatDate(viewSelectedQR?.created_at || '') }}</p>
               </div>
             </div>
-            
             <div class="mt-4 pt-3 border-t border-gray-100">
               <div class="flex items-center justify-between text-sm">
                 <div class="flex items-center gap-2">
@@ -746,7 +545,6 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            
             <div class="mt-3 flex items-center gap-2">
               <input
                 :value="getQRCodeLink(viewSelectedQR!)"
@@ -754,102 +552,64 @@ onBeforeUnmount(() => {
                 readonly
                 class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate"
               />
-              <button
-                @click="copyToClipboard(getQRCodeLink(viewSelectedQR!))"
-                class="p-2 text-gray-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100"
-              >
+              <button @click="copyToClipboard(getQRCodeLink(viewSelectedQR!))" class="p-2 text-gray-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100">
                 <i class="pi pi-copy"></i>
               </button>
             </div>
           </div>
-          
           <div class="p-4 border-t border-gray-100 flex flex-col sm:flex-row gap-2">
-            <button
-              @click="viewAnalytics(viewSelectedQR!); viewModalVisible = false"
-              class="flex-1 py-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
-            >
-              <i class="pi pi-chart-line"></i> View Analytics
-            </button>
-            <button
-              @click="openDownloadModal"
-              class="flex-1 py-3 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
-            >
-              <i class="pi pi-download"></i> Download QR
-            </button>
-          </div>
+          <button @click="viewAnalytics(viewSelectedQR!); viewModalVisible = false" class="flex-1 py-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer">
+            <i class="pi pi-chart-line"></i> View Analytics
+          </button>
+          <button @click="openDownloadModal" class="flex-1 py-3 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer">
+            <i class="pi pi-download"></i> Download QR
+          </button>
         </div>
       </div>
+    </div>
 
-      <!-- Download QR Modal -->
+      <!-- Download Modal -->
+     <!-- Download Modal -->
       <div v-if="downloadModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="downloadModalVisible = false">
         <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl animate-fade-in mx-4">
           <div class="relative p-6 border-b border-gray-100">
             <h3 class="text-lg font-semibold text-gray-900 text-center">Download QR Code</h3>
-            <button @click="downloadModalVisible = false" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors">
+            <button @click="downloadModalVisible = false" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
               <i class="pi pi-times text-xl"></i>
             </button>
           </div>
-          
           <div class="p-6">
-            <!-- QR Code Preview -->
             <div class="flex justify-center mb-4">
               <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200">
                 <img :src="viewSelectedQR?.qrSrc" :alt="viewSelectedQR?.name" class="w-32 h-32 object-contain" />
               </div>
             </div>
-            
             <p class="text-center text-sm text-gray-600 mb-4">{{ viewSelectedQR?.name }}</p>
-            
-            <!-- Size Selection -->
             <div class="mb-4">
               <label class="block text-sm font-semibold text-gray-700 mb-2">QR Code Size</label>
               <div class="grid grid-cols-3 gap-3">
-                <button 
-                  v-for="size in [{ label: 'Small', value: 200 }, { label: 'Medium', value: 500 }, { label: 'Large', value: 1000 }]" 
-                  :key="size.value" 
-                  @click="downloadQRSize = size.value" 
-                  class="px-4 py-2 rounded-lg border-2 transition-all text-sm"
-                  :class="downloadQRSize === size.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'"
-                >
+                <button v-for="size in [{ label: 'Small', value: 200 }, { label: 'Medium', value: 500 }, { label: 'Large', value: 1000 }]" :key="size.value" @click="downloadQRSize = size.value" class="px-4 py-2 rounded-lg border-2 transition-all text-sm cursor-pointer" :class="downloadQRSize === size.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'">
                   {{ size.label }}
                 </button>
               </div>
             </div>
-            
-            <!-- Download Options -->
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-2">Download Format</label>
               <div class="grid grid-cols-3 gap-2">
-                <button 
-                  @click="downloadQR('png')" 
-                  :disabled="downloadLoading"
-                  class="px-3 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                <button @click="downloadQR('png')" :disabled="downloadLoading" class="px-3 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                   <i class="pi pi-image mr-1"></i> PNG
                 </button>
-                <button 
-                  @click="downloadQR('jpg')" 
-                  :disabled="downloadLoading"
-                  class="px-3 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                <button @click="downloadQR('jpg')" :disabled="downloadLoading" class="px-3 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                   <i class="pi pi-image mr-1"></i> JPG
                 </button>
-                <button 
-                  @click="downloadQR('svg')" 
-                  :disabled="downloadLoading"
-                  class="px-3 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                <button @click="downloadQR('svg')" :disabled="downloadLoading" class="px-3 py-2 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                   <i class="pi pi-file mr-1"></i> SVG
                 </button>
               </div>
             </div>
           </div>
-          
           <div class="p-4 border-t border-gray-100">
-            <button 
-              @click="downloadModalVisible = false" 
-              class="w-full px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium text-sm"
-            >
+            <button @click="downloadModalVisible = false" class="w-full px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium text-sm cursor-pointer">
               Close
             </button>
           </div>
@@ -865,25 +625,18 @@ onBeforeUnmount(() => {
               <p class="text-xs sm:text-sm text-gray-500">Scan statistics and insights (auto-refreshes every 5s)</p>
             </div>
             <div class="flex gap-2">
-              <button 
-                @click="refreshAnalytics" 
-                class="text-blue-500 hover:text-blue-600 transition-colors px-2 py-1 rounded hover:bg-blue-50"
-                title="Refresh now"
-              >
+              <button @click="refreshAnalytics" class="text-blue-500 hover:text-blue-600 transition-colors px-2 py-1 rounded hover:bg-blue-50 cursor-pointer" title="Refresh now">
                 <i class="pi pi-refresh"></i>
               </button>
-              <button @click="analyticsModalVisible = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+              <button @click="analyticsModalVisible = false" class="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
                 <i class="pi pi-times text-xl"></i>
               </button>
             </div>
           </div>
-          
           <div v-if="analyticsLoading" class="flex justify-center items-center py-20">
             <i class="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
           </div>
-          
           <div v-else-if="selectedAnalytics" class="p-4 sm:p-6">
-            <!-- Stats Cards -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
               <div class="bg-blue-50 rounded-lg p-3 sm:p-4 text-center">
                 <i class="pi pi-eye text-blue-500 text-base sm:text-xl mb-2 block"></i>
@@ -906,9 +659,8 @@ onBeforeUnmount(() => {
                 <div class="text-xs text-orange-600">Last Scan</div>
               </div>
             </div>
-            
-            <!-- Scans Over Time Chart -->
-             <div v-if="selectedAnalytics.scans_by_day && selectedAnalytics.scans_by_day.length > 0" class="mb-6">
+
+            <div v-if="selectedAnalytics.scans_by_day && selectedAnalytics.scans_by_day.length > 0" class="mb-6">
               <h4 class="font-semibold text-gray-700 mb-3 text-sm sm:text-base">Scans Over Time</h4>
               <div class="bg-gray-50 rounded-lg p-3 sm:p-4">
                 <div class="h-48">
@@ -916,19 +668,13 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            
-            <!-- Recent Scans -->
+
             <div v-if="selectedAnalytics.recent_scans && selectedAnalytics.recent_scans.length > 0">
               <h4 class="font-semibold text-gray-700 mb-3 text-sm sm:text-base">Recent Scans</h4>
               <div class="space-y-2 max-h-96 overflow-y-auto">
-                <div
-                  v-for="scan in selectedAnalytics.recent_scans"
-                  :key="scan.scanned_at"
-                  class="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg text-sm hover:bg-gray-100 transition-colors gap-2"
-                >
+                <div v-for="scan in selectedAnalytics.recent_scans" :key="scan.scanned_at" class="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg text-sm hover:bg-gray-100 transition-colors gap-2">
                   <div class="flex items-center gap-3 flex-1">
-                    <i :class="scan.device_type === 'Mobile' ? 'pi pi-mobile' : (scan.device_type === 'Tablet' ? 'pi pi-tablet' : 'pi pi-desktop')" 
-                       class="text-gray-500"></i>
+                    <i :class="scan.device_type === 'Mobile' ? 'pi pi-mobile' : (scan.device_type === 'Tablet' ? 'pi pi-tablet' : 'pi pi-desktop')" class="text-gray-500"></i>
                     <div class="flex-1">
                       <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <p class="font-medium text-gray-700 text-sm">{{ scan.country || 'Unknown' }}</p>
@@ -946,7 +692,6 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            
             <div v-else class="text-center py-8 text-gray-500">
               <i class="pi pi-chart-line text-4xl mb-2 block"></i>
               <p>No scan data available yet</p>
@@ -961,74 +706,49 @@ onBeforeUnmount(() => {
 
 <style scoped>
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
 
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-
-/* Fix search input focus ring - blue theme */
 input[type="text"]:focus {
   outline: none;
   border-color: #3b82f6 !important;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
 }
 
-/* Desktop table paginator theme */
 :deep(.custom-paginator .p-paginator .p-paginator-pages .p-paginator-page.p-highlight) {
   background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
   border-color: #2563eb !important;
   color: white !important;
   box-shadow: none !important;
 }
-
 :deep(.custom-paginator .p-paginator .p-paginator-pages .p-paginator-page:not(.p-highlight):hover) {
   background: rgba(37, 99, 235, 0.1) !important;
   border-color: #bfdbfe !important;
   color: #2563eb !important;
 }
-
-:deep(.custom-paginator .p-paginator .p-paginator-next:hover),S
+:deep(.custom-paginator .p-paginator .p-paginator-next:hover),
 :deep(.custom-paginator .p-paginator .p-paginator-prev:hover),
 :deep(.custom-paginator .p-paginator .p-paginator-first:hover),
 :deep(.custom-paginator .p-paginator .p-paginator-last:hover) {
   background: rgba(37, 99, 235, 0.1) !important;
   color: #2563eb !important;
 }
+:deep(.custom-paginator .p-paginator .p-dropdown:hover) { border-color: #2563eb !important; }
+:deep(.custom-paginator .p-paginator .p-dropdown .p-dropdown-trigger) { color: #4b5563; }
+:deep(.custom-paginator .p-paginator .p-dropdown:hover .p-dropdown-trigger) { color: #2563eb; }
 
-:deep(.custom-paginator .p-paginator .p-dropdown:hover) {
-  border-color: #2563eb !important;
-}
-
-:deep(.custom-paginator .p-paginator .p-dropdown .p-dropdown-trigger) {
-  color: #4b5563;
-}
-
-:deep(.custom-paginator .p-paginator .p-dropdown:hover .p-dropdown-trigger) {
-  color: #2563eb;
-}
-
-/* Three-dots action button theme */
 :deep(.action-dots-btn.p-button.p-button-text) {
   color: #6b7280 !important;
   background: transparent !important;
   transition: all 0.2s;
 }
-
 :deep(.action-dots-btn.p-button.p-button-text:hover) {
   color: #2563eb !important;
   background: rgba(37, 99, 235, 0.1) !important;
 }
 
-/* Desktop paginator styling */
 :deep(.custom-paginator .p-paginator) {
   background: white;
   border-top: 1px solid #e5e7eb;
@@ -1037,17 +757,14 @@ input[type="text"]:focus {
   gap: 0.5rem;
   justify-content: center;
 }
-
 :deep(.custom-paginator .p-paginator .p-dropdown) {
   border-radius: 0.5rem;
   border-color: #d1d5db;
 }
-
 :deep(.custom-paginator .p-paginator .p-dropdown:focus) {
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
   border-color: #2563eb;
 }
-
 :deep(.custom-paginator .p-paginator .p-paginator-page) {
   min-width: 2rem;
   height: 2rem;
@@ -1055,14 +772,9 @@ input[type="text"]:focus {
   font-weight: 500;
   transition: all 0.2s;
 }
-
 @media (min-width: 640px) {
-  :deep(.custom-paginator .p-paginator .p-paginator-page) {
-    min-width: 2.5rem;
-    height: 2.5rem;
-  }
+  :deep(.custom-paginator .p-paginator .p-paginator-page) { min-width: 2.5rem; height: 2.5rem; }
 }
-
 :deep(.custom-paginator .p-paginator .p-paginator-next),
 :deep(.custom-paginator .p-paginator .p-paginator-prev),
 :deep(.custom-paginator .p-paginator .p-paginator-first),
@@ -1072,27 +784,14 @@ input[type="text"]:focus {
   border-radius: 0.5rem;
   transition: all 0.2s;
 }
-
 @media (min-width: 640px) {
   :deep(.custom-paginator .p-paginator .p-paginator-next),
   :deep(.custom-paginator .p-paginator .p-paginator-prev),
   :deep(.custom-paginator .p-paginator .p-paginator-first),
-  :deep(.custom-paginator .p-paginator .p-paginator-last) {
-    min-width: 2.5rem;
-    height: 2.5rem;
-  }
+  :deep(.custom-paginator .p-paginator .p-paginator-last) { min-width: 2.5rem; height: 2.5rem; }
 }
 
-/* Menu popup theme */
-:deep(.p-menu .p-menuitem-link:hover) {
-  background: rgba(37, 99, 235, 0.1);
-}
-
-:deep(.p-menu .p-menuitem-link .p-menuitem-icon) {
-  color: #4b5563;
-}
-
-:deep(.p-menu .p-menuitem-link:hover .p-menuitem-icon) {
-  color: #2563eb;
-}
+:deep(.p-menu .p-menuitem-link:hover) { background: rgba(37, 99, 235, 0.1); }
+:deep(.p-menu .p-menuitem-link .p-menuitem-icon) { color: #4b5563; }
+:deep(.p-menu .p-menuitem-link:hover .p-menuitem-icon) { color: #2563eb; }
 </style>

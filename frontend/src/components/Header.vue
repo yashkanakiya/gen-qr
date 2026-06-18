@@ -41,7 +41,7 @@ function handleLogout() {
             <i class="pi pi-qrcode text-white text-xl"></i>
           </div>
           <span class="text-xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            QR Gen
+            Gen QR 
           </span>
         </router-link>
 
@@ -62,7 +62,7 @@ function handleLogout() {
             Create QR
           </router-link>
 
-          <button v-if="isAuthenticated" @click="handleLogout" class="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700">
+          <button v-if="isAuthenticated" @click="handleLogout" class="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 cursor-pointer">
             <i class="pi pi-sign-out"></i>
           </button>
         </div>
