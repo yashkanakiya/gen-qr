@@ -1,13 +1,82 @@
 <!DOCTYPE html>
-<html lang="">
+<html lang="en">
   <head>
-    <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vite App</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ===== PRIMARY SEO TAGS ===== -->
+    <title>Gen QR</title>
+    <meta name="description" content="Gen QR is a powerful, free QR code generator. Create custom, high-quality QR codes for links, text, vCards, Wi-Fi, and more in seconds." />
+    <meta name="keywords" content="QR code generator, Gen QR, QR creator, QR code maker, generate QR, custom QR, QR for link, QR for text" />
+    <meta name="author" content="Gen QR" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://gen-qr-five.vercel.app" />
+
+    <!-- ===== OPEN GRAPH (Facebook / LinkedIn) ===== -->
+    <!-- <meta property="og:title" content="Gen QR – QR Code Generator" />
+    <meta property="og:description" content="Create custom QR codes instantly with Gen QR. Free, fast, and easy to use – perfect for links, text, vCards, and Wi-Fi." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://gen-qr-five.vercel.app" />
+    <meta property="og:site_name" content="Gen QR" />
+    <meta property="og:image" content="https://gen-qr-five.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" /> -->
+
+    <!-- ===== TWITTER CARD ===== -->
+    <!-- <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Gen QR – QR Code Generator" />
+    <meta name="twitter:description" content="Generate custom QR codes in seconds. Free, fast, and reliable – for links, text, vCards, Wi-Fi, and more." />
+    <meta name="twitter:image" content="https://gen-qr-five.vercel.app/twitter-image.png" /> -->
+
+    <!-- ===== STRUCTURED DATA (JSON‑LD) ===== -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Gen QR",
+        "description": "A free, fast QR code generator for links, text, vCards, Wi-Fi, and more.",
+        "applicationCategory": "Utility",
+        "operatingSystem": "All",
+        "browserRequirements": "Requires JavaScript",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "url": "https://gen-qr-five.vercel.app"
+      }
+    </script>
+
+    <!-- ===== FAVICON / GLYPHICON ===== -->
+    <!-- SVG favicon (modern browsers) – QR code design -->
+    <link rel="icon" type="image/svg+xml" href="/web/favicon.ico" />
+
+    <!-- Fallback .ico for older browsers -->
+    <link rel="icon" href="/web/favicon.ico" sizes="any" />
+
+    <!-- Apple Touch Icon (iOS / iPadOS) -->
+    <link rel="apple-touch-icon" href="/web/apple-touch-icon.png" sizes="180x180" />
+
+    <!-- Android / Chrome icons -->
+    <link rel="icon" type="image/png" href="/web/icon-512.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/web/icon-192.png" sizes="16x16" />
+
+    <!-- Web App Manifest (PWA) -->
+    <!-- <link rel="manifest" href="/site.webmanifest" /> -->
+
+    <!-- Theme color for mobile browsers -->
+    <meta name="theme-color" content="#1e40af" />
+
+    <!-- Mobile web app capable (modern) -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Legacy iOS support (keep both) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Vite entry point -->
+    <script type="module" src="/src/main.ts"></script>
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
