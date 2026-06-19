@@ -145,43 +145,57 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
       break
     }
     case 'wifi': {
-      // Find all S: occurrences and pick the last one that doesn't contain "WIFI:"
-      const ssidMatches = qr.value.match(/S:([^;]+)/g)
       let ssid = ''
+      let password = ''
+
+      // Extract SSID – find the last S: that does NOT contain "WIFI:"
+      const ssidMatches = qr.value.match(/S:([^;]+)/g)
       if (ssidMatches) {
         for (let i = ssidMatches.length - 1; i >= 0; i--) {
-          const val = ssidMatches[i]!.replace(/^S:/, '')
-          if (!val.includes('WIFI:')) {
-            ssid = val
-            break
+          const match = ssidMatches[i]
+          if (match) {
+            const val = match.replace(/^S:/, '')
+            if (!val.includes('WIFI:')) {
+              ssid = val
+              break
+            }
           }
         }
-        // Fallback: strip "WIFI:" from the first S: if none clean
+        // Fallback: strip "WIFI:" from the first match if none clean
         if (!ssid && ssidMatches.length > 0) {
-          ssid = ssidMatches[0]!.replace(/^S:/, '').replace(/WIFI:/g, '').trim()
+          const firstMatch = ssidMatches[0]
+          if (firstMatch) {
+            ssid = firstMatch.replace(/^S:/, '').replace(/WIFI:/g, '').trim()
+          }
         }
       }
-      form.wifiSSID = ssid
 
-      // Encryption
+      // Encryption type
       const encMatch = qr.value.match(/T:([^;]+)/)
-      form.wifiEncryption = encMatch ? encMatch[1] : 'WPA'
+      form.wifiEncryption = encMatch && encMatch[1] ? encMatch[1] : 'WPA'
 
-      // Password: pick the last P: that doesn't contain "WIFI:"
+      // Extract password – same logic as SSID
       const passMatches = qr.value.match(/P:([^;]+)/g)
-      let password = ''
       if (passMatches) {
         for (let i = passMatches.length - 1; i >= 0; i--) {
-          const val = passMatches[i]!.replace(/^P:/, '')
-          if (!val.includes('WIFI:')) {
-            password = val
-            break
+          const match = passMatches[i]
+          if (match) {
+            const val = match.replace(/^P:/, '')
+            if (!val.includes('WIFI:')) {
+              password = val
+              break
+            }
           }
         }
         if (!password && passMatches.length > 0) {
-          password = passMatches[0]!.replace(/^P:/, '').replace(/WIFI:/g, '').trim()
+          const firstMatch = passMatches[0]
+          if (firstMatch) {
+            password = firstMatch.replace(/^P:/, '').replace(/WIFI:/g, '').trim()
+          }
         }
       }
+
+      form.wifiSSID = ssid
       form.wifiPassword = password
       break
     }
