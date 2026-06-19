@@ -1,4 +1,4 @@
-<!-- views/EditQR.vue (updated version with debugging and reload) -->
+<!-- views/EditQR.vue -->
 <script lang="ts" setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -133,21 +133,56 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
       break
     }
     case 'phone':
-      form.phoneNumber = qr.value.replace('tel:', '')
+      // Remove all leading "tel:" prefixes
+      form.phoneNumber = qr.value.replace(/^(tel:)+/, '')
       break
     case 'sms': {
-      const smsParts = qr.value.replace('smsto:', '').split(':')
+      // Remove all leading "smsto:" prefixes
+      const clean = qr.value.replace(/^(smsto:)+/, '')
+      const smsParts = clean.split(':')
       form.smsNumber = smsParts[0] ?? ''
       if (smsParts[1]) form.smsMessage = decodeURIComponent(smsParts[1])
       break
     }
     case 'wifi': {
-      const ssidMatch = qr.value.match(/S:([^;]+)/)
-      if (ssidMatch) form.wifiSSID = ssidMatch[1] ?? ''
+      // Find all S: occurrences and pick the last one that doesn't contain "WIFI:"
+      const ssidMatches = qr.value.match(/S:([^;]+)/g)
+      let ssid = ''
+      if (ssidMatches) {
+        for (let i = ssidMatches.length - 1; i >= 0; i--) {
+          const val = ssidMatches[i]!.replace(/^S:/, '')
+          if (!val.includes('WIFI:')) {
+            ssid = val
+            break
+          }
+        }
+        // Fallback: strip "WIFI:" from the first S: if none clean
+        if (!ssid && ssidMatches.length > 0) {
+          ssid = ssidMatches[0]!.replace(/^S:/, '').replace(/WIFI:/g, '').trim()
+        }
+      }
+      form.wifiSSID = ssid
+
+      // Encryption
       const encMatch = qr.value.match(/T:([^;]+)/)
-      if (encMatch) form.wifiEncryption = encMatch[1] ?? ''
-      const passMatch = qr.value.match(/P:([^;]+)/)
-      if (passMatch) form.wifiPassword = passMatch[1] ?? ''
+      form.wifiEncryption = encMatch ? encMatch[1] : 'WPA'
+
+      // Password: pick the last P: that doesn't contain "WIFI:"
+      const passMatches = qr.value.match(/P:([^;]+)/g)
+      let password = ''
+      if (passMatches) {
+        for (let i = passMatches.length - 1; i >= 0; i--) {
+          const val = passMatches[i]!.replace(/^P:/, '')
+          if (!val.includes('WIFI:')) {
+            password = val
+            break
+          }
+        }
+        if (!password && passMatches.length > 0) {
+          password = passMatches[0]!.replace(/^P:/, '').replace(/WIFI:/g, '').trim()
+        }
+      }
+      form.wifiPassword = password
       break
     }
     case 'location': {
@@ -267,7 +302,6 @@ async function loadQRData() {
     setFormValueFromQR(qrData)
     qrSrc.value = qrData.qrSrc || ''
     previewContent.value = getFullQRContent()
-    console.log('Loaded QR type:', qrData.type)  // Debug
   } catch (error) {
     console.error('Error loading QR:', error)
     toast.add({
@@ -298,7 +332,7 @@ async function updateQR() {
   try {
     const updateData: any = {
       name: form.name.trim(),
-      type: form.type,          // ✅ type is included
+      type: form.type,
       value: getFullQRContent()
     }
 
@@ -307,18 +341,14 @@ async function updateQR() {
       updateData.wifiPassword = form.wifiPassword
     }
 
-    console.log('Sending update:', updateData)  // Debug
-
     await updateQRCode(qrId.value, updateData)
 
-    // ✅ Reload QR data to ensure UI reflects backend changes
     const refreshed = await getQRCodeById(qrId.value)
     originalQR.value = refreshed
     setFormValueFromQR(refreshed)
     qrSrc.value = refreshed.qrSrc || ''
     previewContent.value = getFullQRContent()
 
-    // Also refresh the global list
     await loadQRCodes()
 
     toast.add({
@@ -332,6 +362,7 @@ async function updateQR() {
       router.push('/dashboard')
     }, 1500)
   } catch (error) {
+    isSaving.value = false
     console.error('Update error:', error)
     toast.add({
       severity: 'error',
@@ -339,8 +370,6 @@ async function updateQR() {
       detail: 'Failed to update QR code',
       life: 4000
     })
-  } finally {
-    isSaving.value = false
   }
 }
 
@@ -352,7 +381,6 @@ function setType(type: string) {
   form.type = type
   activeTab.value = type
   validationErrors.value.value = ''
-  console.log('Type changed to:', type)  // Debug
 }
 
 onMounted(() => {
@@ -361,7 +389,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- Your existing template remains exactly the same -->
+  <!-- Template remains unchanged -->
   <div class="flex items-center justify-center min-h-screen">
     <div class="max-w-2xl mx-auto w-full px-4">
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
@@ -378,14 +406,48 @@ onMounted(() => {
           <p class="text-gray-600 mt-2">Update your QR code information</p>
         </div>
 
-        <!-- Loading State -->
-        <div v-if="isLoading" class="flex justify-center items-center py-20">
-          <i class="pi pi-spin pi-spinner text-4xl text-blue-500"></i>
+        <!-- Skeleton Loader -->
+        <div v-if="isLoading" class="space-y-4 animate-pulse">
+          <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+            <div class="h-4 bg-gray-200 rounded w-1/3 mx-auto mb-3"></div>
+            <div class="flex justify-center">
+              <div class="bg-white p-3 rounded-xl shadow-md border border-gray-200">
+                <div class="w-32 h-32 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+            <div class="h-3 bg-gray-200 rounded w-1/2 mx-auto mt-2"></div>
+          </div>
+          <div>
+            <div class="h-4 bg-gray-200 rounded w-1/4 mb-3"></div>
+            <div class="grid grid-cols-4 gap-2">
+              <div v-for="i in 4" :key="i" class="h-12 bg-gray-200 rounded-lg"></div>
+            </div>
+          </div>
+          <div>
+            <div class="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+            <div class="h-10 bg-gray-200 rounded-lg w-full"></div>
+          </div>
+          <div>
+            <div class="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+            <div class="h-10 bg-gray-200 rounded-lg w-full"></div>
+          </div>
+          <div>
+            <div class="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+            <div class="h-10 bg-gray-200 rounded-lg w-full"></div>
+          </div>
+          <div class="bg-gray-100 rounded-lg p-3">
+            <div class="h-3 bg-gray-200 rounded w-1/4 mb-1"></div>
+            <div class="h-5 bg-gray-200 rounded w-3/4"></div>
+          </div>
+          <div class="flex gap-3 pt-4">
+            <div class="flex-1 h-11 bg-gray-200 rounded-lg"></div>
+            <div class="flex-1 h-11 bg-gray-200 rounded-lg"></div>
+          </div>
         </div>
 
         <!-- Edit Form -->
         <div v-else class="space-y-4">
-          <!-- QR Preview (non-editable) -->
+          <!-- QR Preview -->
           <div v-if="qrSrc" class="mb-4 p-4 bg-gray-50 rounded-lg">
             <label class="block text-sm font-semibold text-gray-700 mb-3 text-center">Current QR Code</label>
             <div class="flex justify-center">
@@ -404,7 +466,7 @@ onMounted(() => {
                 v-for="type in QR_TYPES"
                 :key="type.value"
                 @click="setType(type.value)"
-                class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+                class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all cursor-pointer"
                 :class="activeTab === type.value
                   ? 'bg-blue-50 text-blue-600 border-2 border-blue-500'
                   : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'"
@@ -624,14 +686,14 @@ onMounted(() => {
           <div class="flex gap-3 pt-4">
             <button
               @click="cancel"
-              class="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all"
+              class="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer"
             >
               Cancel
             </button>
             <button
               @click="updateQR"
               :disabled="!isFormValid || !hasChanges || isSaving"
-              class="flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+              class="flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
               :class="!isFormValid || !hasChanges || isSaving
                 ? 'bg-gray-300 cursor-not-allowed text-gray-500'
                 : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'"

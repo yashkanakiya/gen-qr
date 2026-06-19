@@ -34,8 +34,9 @@ const router = useRouter()
 const toast = useToast()
 const saveModalVisible = ref<boolean>(false)
 const isLoading = ref<boolean>(false)
+const isSavingToDashboard = ref<boolean>(false)
 const activeTab = ref<string>('url')
-const qrGenerated = ref<boolean>(false)          // NEW: prevent re-generation
+const qrGenerated = ref<boolean>(false)
 
 const validationErrors = ref<ValidationErrors>({
   name: '',
@@ -68,6 +69,13 @@ const wifiEncryptionOptions = [
   { label: 'WPA/WPA2', value: 'WPA' },
   { label: 'WEP', value: 'WEP' },
   { label: 'None (Open Network)', value: 'nopass' }
+]
+
+// Size options with clear labels and pixel dimensions
+const sizeOptions = [
+  { label: 'Small', value: 200, dimensions: '200×200' },
+  { label: 'Medium', value: 500, dimensions: '500×500' },
+  { label: 'Large', value: 1000, dimensions: '1000×1000' }
 ]
 
 const getCurrentValue = (): string => {
@@ -214,12 +222,12 @@ async function generateQR(): Promise<void> {
 async function saveToDashboard(): Promise<void> {
   if (!isFormValid.value) return
   
-  isLoading.value = true
+  isSavingToDashboard.value = true   // disable button
   try {
     const saveData: any = { 
       name: form.name.trim(), 
       type: form.type, 
-      value: getFullQRContent()      // FIXED: store full content
+      value: getFullQRContent()
     }
     if (form.type === 'wifi') {
       saveData.wifiEncryption = form.wifiEncryption
@@ -228,11 +236,14 @@ async function saveToDashboard(): Promise<void> {
     await saveQRCode(saveData)
     saveModalVisible.value = false
     toast.add({ severity: 'success', summary: 'Saved!', detail: 'QR code saved to dashboard', life: 3000 })
-    setTimeout(() => router.push('/dashboard'), 1500)
+    // Keep button disabled during redirect delay
+    setTimeout(() => {
+      router.push('/dashboard')
+    }, 1500)
   } catch (error) {
+    // Re‑enable button only on error
+    isSavingToDashboard.value = false
     toast.add({ severity: 'error', summary: 'Save Failed', detail: 'Failed to save QR code', life: 4000 })
-  } finally {
-    isLoading.value = false
   }
 }
 
@@ -322,7 +333,7 @@ function setType(type: string): void {
               v-for="type in QR_TYPES"
               :key="type.value"
               @click="setType(type.value)"
-              class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all"
+              class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all cursor-pointer"
               :class="activeTab === type.value
                 ? 'bg-blue-50 text-blue-600 border-2 border-blue-500'
                 : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'"
@@ -495,8 +506,15 @@ function setType(type: string): void {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">QR Code Size</label>
             <div class="grid grid-cols-3 gap-3">
-              <button v-for="size in [{ label: 'Small', value: 200 }, { label: 'Medium', value: 500 }, { label: 'Large', value: 1000 }]" :key="size.value" @click="selectedSize = size.value" class="px-4 py-2 rounded-lg border-2 transition-all" :class="selectedSize === size.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'">
-                {{ size.label }}
+              <button
+                v-for="size in sizeOptions"
+                :key="size.value"
+                @click="selectedSize = size.value"
+                class="flex flex-col items-center px-4 py-2 rounded-lg border-2 transition-all cursor-pointer"
+                :class="selectedSize === size.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'"
+              >
+                <span>{{ size.label }}</span>
+                <span class="text-xs text-gray-500 mt-0.5">{{ size.dimensions }}</span>
               </button>
             </div>
           </div>
@@ -505,7 +523,7 @@ function setType(type: string): void {
           <button 
             @click="generateQR" 
             :disabled="!isFormValid || isLoading || qrGenerated" 
-            class="w-full py-3 text-base font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]" 
+            class="w-full py-3 text-base font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer" 
             :class="!isFormValid || isLoading || qrGenerated ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'"
           >
             <i v-if="isLoading" class="pi pi-spin pi-spinner mr-2"></i>
@@ -535,17 +553,22 @@ function setType(type: string): void {
             <div class="mb-4">
               <label class="block text-sm font-semibold text-gray-700 mb-2">Download Options</label>
               <div class="grid grid-cols-3 gap-2">
-                <button @click="downloadQR('png')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm">PNG</button>
-                <button @click="downloadQR('jpg')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm">JPG</button>
-                <button @click="downloadQR('svg')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm">SVG</button>
+                <button @click="downloadQR('png')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">PNG</button>
+                <button @click="downloadQR('jpg')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">JPG</button>
+                <button @click="downloadQR('svg')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">SVG</button>
               </div>
             </div>
 
             <div class="flex flex-col gap-2">
-              <button @click="saveModalVisible = true" class="w-full py-2.5 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-[1.02] shadow-md text-sm">
+              <button 
+                @click="saveModalVisible = true" 
+                :disabled="!qrSrc || isSavingToDashboard"
+                class="w-full py-2.5 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-[1.02] shadow-md text-sm cursor-pointer"
+                :class="{ 'opacity-50 cursor-not-allowed': !qrSrc || isSavingToDashboard }"
+              >
                 Save to Dashboard
               </button>
-              <button @click="resetForm" class="w-full py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all text-sm">
+              <button @click="resetForm" class="w-full py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all text-sm cursor-pointer">
                 Create Another
               </button>
             </div>
@@ -569,8 +592,16 @@ function setType(type: string): void {
           </div>
         </div>
         <div class="flex gap-3 p-4 border-t border-gray-100">
-          <button @click="saveModalVisible = false" class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium">Cancel</button>
-          <button @click="saveToDashboard" class="flex-1 px-4 py-2 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-medium">Save</button>
+          <button @click="saveModalVisible = false" class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium cursor-pointer">Cancel</button>
+          <button 
+            @click="saveToDashboard" 
+            :disabled="isSavingToDashboard"
+            class="flex-1 px-4 py-2 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-medium cursor-pointer"
+            :class="{ 'opacity-50 cursor-not-allowed': isSavingToDashboard }"
+          >
+            <i v-if="isSavingToDashboard" class="pi pi-spin pi-spinner mr-2"></i>
+            {{ isSavingToDashboard ? 'Saving...' : 'Save' }}
+          </button>
         </div>
       </div>
     </div>

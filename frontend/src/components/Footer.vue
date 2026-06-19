@@ -39,7 +39,7 @@
       <!-- Footer bottom bar with version (already centered) -->
       <div class="mt-4 pt-4 border-t border-gray-200 text-center">
         <p class="text-xs text-gray-400">
-          Version 1.0.0 | Made with <i class="pi pi-heart-fill text-red-500 text-xs"></i> Yash Kanakiya
+          Version 1.0.0 | Made by <i class="pi pi-heart-fill text-red-500 text-xs"></i> Yash Kanakiya
         </p>
       </div>
     </div>

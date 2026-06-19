@@ -261,6 +261,11 @@ const openDownloadModal = () => {
 const toggleActionMenu = (event: Event, qr: QRCodeItem, isMobile = false) => {
   const menuItems = [
     {
+      label: 'View',
+      icon: 'pi pi-eye',
+      command: () => showViewModal(qr)
+    },
+    {
       label: 'Update',
       icon: 'pi pi-pencil',
       command: () => editQR(qr)
@@ -270,11 +275,6 @@ const toggleActionMenu = (event: Event, qr: QRCodeItem, isMobile = false) => {
       icon: 'pi pi-trash',
       command: () => confirmDelete(qr)
     },
-    {
-      label: 'View',
-      icon: 'pi pi-eye',
-      command: () => showViewModal(qr)
-    }
   ]
   actionMenuItems.value = menuItems
   if (isMobile) {
@@ -377,10 +377,9 @@ async function downloadQR(format: 'png' | 'jpg' | 'svg') {
   }
 }
 
-// Chart data for analytics – **fixed to avoid slice error**
+// Chart data for analytics
 const getChartData = computed(() => {
   if (!selectedAnalytics.value?.scans_by_day) return []
-  // Ensure it's an array before slice
   const days = selectedAnalytics.value.scans_by_day
   if (!Array.isArray(days)) return []
   return days.slice().reverse()
@@ -516,15 +515,15 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- View QR Modal -->
-        <div v-if="viewModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="viewModalVisible = false">
-          <div class="bg-white rounded-xl w-full max-w-md shadow-2xl animate-fade-in mx-4">
-            <div class="relative bg-gray-50 p-4 sm:p-6 flex justify-center border-b border-gray-100">
-              <img :src="viewSelectedQR?.qrSrc" alt="QR Code" class="w-32 h-32 sm:w-40 sm:h-40 object-contain" />
-              <button @click="viewModalVisible = false" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
-                <i class="pi pi-times text-xl"></i>
-              </button>
-            </div>
-            <div class="p-4 sm:p-5">
+      <div v-if="viewModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" @click.self="viewModalVisible = false">
+        <div class="bg-white rounded-xl w-full max-w-md shadow-2xl animate-fade-in mx-4">
+          <div class="relative bg-gray-50 p-4 sm:p-6 flex justify-center border-b border-gray-100">
+            <img :src="viewSelectedQR?.qrSrc" alt="QR Code" class="w-32 h-32 sm:w-40 sm:h-40 object-contain" />
+            <button @click="viewModalVisible = false" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+              <i class="pi pi-times text-xl"></i>
+            </button>
+          </div>
+          <div class="p-4 sm:p-5">
             <div class="flex items-start justify-between mb-3">
               <div>
                 <div class="flex items-center gap-2 mb-1">
@@ -552,24 +551,23 @@ onBeforeUnmount(() => {
                 readonly
                 class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate"
               />
-              <button @click="copyToClipboard(getQRCodeLink(viewSelectedQR!))" class="p-2 text-gray-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100">
+              <button @click="copyToClipboard(getQRCodeLink(viewSelectedQR!))" class="p-2 text-gray-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100 cursor-pointer">
                 <i class="pi pi-copy"></i>
               </button>
             </div>
           </div>
           <div class="p-4 border-t border-gray-100 flex flex-col sm:flex-row gap-2">
-          <button @click="viewAnalytics(viewSelectedQR!); viewModalVisible = false" class="flex-1 py-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer">
-            <i class="pi pi-chart-line"></i> View Analytics
-          </button>
-          <button @click="openDownloadModal" class="flex-1 py-3 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer">
-            <i class="pi pi-download"></i> Download QR
-          </button>
+            <button @click="viewAnalytics(viewSelectedQR!); viewModalVisible = false" class="flex-1 py-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer">
+              <i class="pi pi-chart-line"></i> View Analytics
+            </button>
+            <button @click="openDownloadModal" class="flex-1 py-3 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer">
+              <i class="pi pi-download"></i> Download QR
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
       <!-- Download Modal -->
-     <!-- Download Modal -->
       <div v-if="downloadModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="downloadModalVisible = false">
         <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl animate-fade-in mx-4">
           <div class="relative p-6 border-b border-gray-100">
@@ -588,8 +586,19 @@ onBeforeUnmount(() => {
             <div class="mb-4">
               <label class="block text-sm font-semibold text-gray-700 mb-2">QR Code Size</label>
               <div class="grid grid-cols-3 gap-3">
-                <button v-for="size in [{ label: 'Small', value: 200 }, { label: 'Medium', value: 500 }, { label: 'Large', value: 1000 }]" :key="size.value" @click="downloadQRSize = size.value" class="px-4 py-2 rounded-lg border-2 transition-all text-sm cursor-pointer" :class="downloadQRSize === size.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'">
-                  {{ size.label }}
+                <button
+                  v-for="size in [
+                    { label: 'Small', value: 200, dimensions: '200×200' },
+                    { label: 'Medium', value: 500, dimensions: '500×500' },
+                    { label: 'Large', value: 1000, dimensions: '1000×1000' }
+                  ]"
+                  :key="size.value"
+                  @click="downloadQRSize = size.value"
+                  class="flex flex-col items-center px-4 py-2 rounded-lg border-2 transition-all cursor-pointer"
+                  :class="downloadQRSize === size.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'"
+                >
+                  <span>{{ size.label }}</span>
+                  <span class="text-xs text-gray-500 mt-0.5">{{ size.dimensions }}</span>
                 </button>
               </div>
             </div>
