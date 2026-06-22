@@ -2,11 +2,33 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
-import { logout, isAuthenticated } from '../stores/authStore'
+import { logout, isAuthenticated, currentUser, profileImage } from '../stores/authStore'
+import Menu from 'primevue/menu'
+import Button from 'primevue/button'
+import ProfileDialog from './ProfileDialog.vue'
 
 const router = useRouter()
 const toast = useToast()
 const mobileMenuOpen = ref(false)
+const profileDialogVisible = ref(false)
+
+const menuRef = ref()
+const menuItems = ref([
+  {
+    label: 'Profile',
+    icon: 'pi pi-user',
+    command: () => {
+      profileDialogVisible.value = true
+    }
+  },
+  {
+    label: 'Logout',
+    icon: 'pi pi-sign-out',
+    command: () => {
+      handleLogout()
+    }
+  }
+])
 
 const toggleMobileMenu = () => { mobileMenuOpen.value = !mobileMenuOpen.value }
 const closeMobileMenu = () => { mobileMenuOpen.value = false }
@@ -22,10 +44,34 @@ function handleLogout() {
   router.push('/login')
 }
 
-// Helper to check if we're on legal pages (for "More" dropdown highlight)
+// 🔧 Safe initials generator
+const getInitials = (name: string): string => {
+  if (!name) return '?'
+  const trimmed = name.trim()
+  if (trimmed.length === 0) return '?'
+  const parts = trimmed.split(/\s+/)
+  if (parts.length === 1) {
+    return parts[0].substring(0, 2).toUpperCase()
+  }
+  const first = parts[0]?.[0] || ''
+  const second = parts[1]?.[0] || ''
+  const combined = (first + second).toUpperCase()
+  return combined || parts[0].substring(0, 2).toUpperCase()
+}
+
+const avatarInitials = computed(() => {
+  const user = currentUser.value
+  const name = user?.username || user?.email || 'User'
+  return getInitials(name)
+})
+
 const isLegalPage = computed(() => {
   return ['/terms', '/privacy'].includes(router.currentRoute.value.path)
 })
+
+const toggleMenu = (event: Event) => {
+  menuRef.value?.toggle(event)
+}
 </script>
 
 <template>
@@ -43,7 +89,7 @@ const isLegalPage = computed(() => {
 
         <!-- Desktop Menu -->
         <div class="hidden md:flex items-center space-x-4">
-          <!-- Public links with active state -->
+          <!-- Public links -->
           <router-link
             to="/pricing"
             class="px-4 py-2 rounded-lg transition-all duration-200"
@@ -66,7 +112,7 @@ const isLegalPage = computed(() => {
             Contact
           </router-link>
 
-          <!-- More dropdown (Terms & Privacy) with highlight on "More" button when inside -->
+          <!-- More dropdown -->
           <div class="relative group">
             <button
               class="px-3 py-2 rounded-lg transition-all duration-200 flex items-center"
@@ -108,10 +154,35 @@ const isLegalPage = computed(() => {
             >
               <i class="pi pi-plus mr-2"></i> Create QR
             </router-link>
-            <button @click="handleLogout" class="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 cursor-pointer">
-              <i class="pi pi-sign-out"></i>
-            </button>
+
+            <!-- 🔽 NEW: Avatar / Settings Dropdown -->
+            <Button
+              class="!p-0 !border-0 !bg-transparent !shadow-none hover:!bg-transparent"
+              @click="toggleMenu"
+              aria-haspopup="true"
+              aria-controls="user-menu"
+            >
+              <div
+                class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold text-white bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
+              >
+                <img
+                  v-if="profileImage"
+                  :src="profileImage"
+                  alt="Profile"
+                  class="w-full h-full object-cover"
+                />
+                <span v-else>{{ avatarInitials }}</span>
+              </div>
+            </Button>
+
+            <Menu
+              ref="menuRef"
+              id="user-menu"
+              :model="menuItems"
+              popup
+            />
           </template>
+
           <template v-else>
             <router-link
               to="/login"
@@ -140,7 +211,6 @@ const isLegalPage = computed(() => {
       <Transition name="slide-down">
         <div v-if="mobileMenuOpen" class="md:hidden py-4 border-t border-gray-200">
           <div class="flex flex-col space-y-2">
-            <!-- All links with active highlighting -->
             <router-link
               to="/pricing"
               @click="closeMobileMenu"
@@ -201,6 +271,7 @@ const isLegalPage = computed(() => {
               >
                 <i class="pi pi-plus mr-3"></i> Create QR
               </router-link>
+              <!-- Mobile logout – we keep a separate button for mobile (optional) -->
               <button @click="handleLogout" class="px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 text-left">
                 <i class="pi pi-sign-out mr-3"></i> Logout
               </button>
@@ -227,6 +298,9 @@ const isLegalPage = computed(() => {
         </div>
       </Transition>
     </div>
+
+    <!-- Profile Dialog -->
+    <ProfileDialog v-model:visible="profileDialogVisible" />
   </nav>
 </template>
 

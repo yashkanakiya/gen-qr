@@ -39,6 +39,30 @@ const handleApiError = (error: unknown): never => {
   throw error
 }
 
+// 🆕 Profile image (stored as data URL in localStorage)
+export const profileImage = ref<string | null>(
+  localStorage.getItem('profile_image') || null
+)
+
+// 🆕 Update profile image (persist to localStorage)
+export function setProfileImage(image: string | null) {
+  profileImage.value = image
+  if (image) {
+    localStorage.setItem('profile_image', image)
+  } else {
+    localStorage.removeItem('profile_image')
+  }
+}
+
+// 🆕 Update username (frontend only – no API call yet)
+export function updateUserUsername(newUsername: string) {
+  if (currentUser.value) {
+    currentUser.value.username = newUsername
+    // Optionally persist in localStorage for refresh survival
+    // (but token still has old username – phase 2 will sync with backend)
+  }
+}
+
 // Load user from token
 export async function loadUser(): Promise<boolean> {
   const token = localStorage.getItem('auth_token')
