@@ -17,11 +17,11 @@
         <form @submit.prevent="handleLogin" class="space-y-6">
           <!-- Email Field -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </label>
+            <label class="block text-sm font-medium text-gray-700 mb-2"> Email Address </label>
             <div class="relative">
-              <i class="pi pi-envelope absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <i
+                class="pi pi-envelope absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"
+              ></i>
               <input
                 v-model="form.email"
                 type="email"
@@ -34,11 +34,11 @@
 
           <!-- Password Field -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
+            <label class="block text-sm font-medium text-gray-700 mb-2"> Password </label>
             <div class="relative">
-              <i class="pi pi-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <i
+                class="pi pi-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"
+              ></i>
               <input
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
@@ -59,7 +59,11 @@
           <!-- Remember Me & Forgot Password -->
           <div class="flex items-center justify-between">
             <label class="flex items-center">
-              <input type="checkbox" v-model="rememberMe" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+              <input
+                type="checkbox"
+                v-model="rememberMe"
+                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
               <span class="ml-2 text-sm text-gray-600">Remember me</span>
             </label>
             <a href="#" class="text-sm text-blue-600 hover:text-blue-700">Forgot password?</a>
@@ -133,7 +137,7 @@ const showPassword = ref(false)
 
 const form = reactive({
   email: '',
-  password: ''
+  password: '',
 })
 
 async function handleLogin() {
@@ -142,26 +146,26 @@ async function handleLogin() {
       severity: 'error',
       summary: 'Validation Error',
       detail: 'Please fill in all fields',
-      life: 4000
+      life: 4000,
     })
     return
   }
 
   isLoading.value = true
-  
+
   try {
     await login(form)
     toast.add({
       severity: 'success',
       summary: 'Success',
       detail: 'Logged in successfully!',
-      life: 3000
+      life: 3000,
     })
     router.push('/dashboard')
   } catch (error: any) {
     // Properly extract error message from backend
     let errorMessage = 'Invalid email or password'
-    
+
     if (axios.isAxiosError(error)) {
       // Handle axios error
       if (error.response?.data?.error) {
@@ -174,12 +178,12 @@ async function handleLogin() {
     } else if (error instanceof Error) {
       errorMessage = error.message
     }
-    
+
     toast.add({
       severity: 'error',
       summary: 'Login Failed',
       detail: errorMessage,
-      life: 4000
+      life: 4000,
     })
   } finally {
     isLoading.value = false

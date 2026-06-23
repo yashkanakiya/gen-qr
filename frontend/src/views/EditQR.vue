@@ -42,7 +42,7 @@ interface ValidationErrors {
 
 const validationErrors = ref<ValidationErrors>({
   name: '',
-  value: ''
+  value: '',
 })
 
 const form: FormData = reactive({
@@ -60,7 +60,7 @@ const form: FormData = reactive({
   wifiEncryption: 'WPA',
   wifiPassword: '',
   locationLat: '',
-  locationLng: ''
+  locationLng: '',
 })
 
 const qrSrc = ref<string>('')
@@ -70,19 +70,27 @@ const activeTab = ref<string>('url')
 const wifiEncryptionOptions = [
   { label: 'WPA/WPA2', value: 'WPA' },
   { label: 'WEP', value: 'WEP' },
-  { label: 'None (Open Network)', value: 'nopass' }
+  { label: 'None (Open Network)', value: 'nopass' },
 ]
 
 const getCurrentValue = (): string => {
   switch (form.type) {
-    case 'url': return form.urlValue
-    case 'text': return form.textValue
-    case 'email': return form.emailTo
-    case 'phone': return form.phoneNumber
-    case 'sms': return form.smsNumber
-    case 'wifi': return form.wifiSSID
-    case 'location': return form.locationLat && form.locationLng ? `${form.locationLat},${form.locationLng}` : ''
-    default: return ''
+    case 'url':
+      return form.urlValue
+    case 'text':
+      return form.textValue
+    case 'email':
+      return form.emailTo
+    case 'phone':
+      return form.phoneNumber
+    case 'sms':
+      return form.smsNumber
+    case 'wifi':
+      return form.wifiSSID
+    case 'location':
+      return form.locationLat && form.locationLng ? `${form.locationLat},${form.locationLng}` : ''
+    default:
+      return ''
   }
 }
 
@@ -103,14 +111,27 @@ const getSMSContent = (): string => {
 
 const getFullQRContent = (): string => {
   switch (form.type) {
-    case 'url': return generateQRContent('url', form.urlValue)
-    case 'text': return generateQRContent('text', form.textValue)
-    case 'email': return getEmailContent()
-    case 'phone': return generateQRContent('phone', form.phoneNumber)
-    case 'sms': return getSMSContent()
-    case 'wifi': return generateQRContent('wifi', form.wifiSSID, { encryption: form.wifiEncryption, password: form.wifiPassword })
-    case 'location': return form.locationLat && form.locationLng ? generateQRContent('location', `${form.locationLat},${form.locationLng}`) : ''
-    default: return ''
+    case 'url':
+      return generateQRContent('url', form.urlValue)
+    case 'text':
+      return generateQRContent('text', form.textValue)
+    case 'email':
+      return getEmailContent()
+    case 'phone':
+      return generateQRContent('phone', form.phoneNumber)
+    case 'sms':
+      return getSMSContent()
+    case 'wifi':
+      return generateQRContent('wifi', form.wifiSSID, {
+        encryption: form.wifiEncryption,
+        password: form.wifiPassword,
+      })
+    case 'location':
+      return form.locationLat && form.locationLng
+        ? generateQRContent('location', `${form.locationLat},${form.locationLng}`)
+        : ''
+    default:
+      return ''
   }
 }
 
@@ -283,14 +304,17 @@ const validateFormValue = (): boolean => {
 }
 
 const isFormValid = computed<boolean>(() => {
-  const hasValue = getCurrentValue().trim() !== '' ||
+  const hasValue =
+    getCurrentValue().trim() !== '' ||
     (form.type === 'wifi' && form.wifiSSID.trim() !== '') ||
     (form.type === 'location' && !!form.locationLat && !!form.locationLng)
 
-  return validationErrors.value.name === '' &&
-         validationErrors.value.value === '' &&
-         form.name.trim() !== '' &&
-         hasValue
+  return (
+    validationErrors.value.name === '' &&
+    validationErrors.value.value === '' &&
+    form.name.trim() !== '' &&
+    hasValue
+  )
 })
 
 const hasChanges = computed<boolean>(() => {
@@ -300,16 +324,31 @@ const hasChanges = computed<boolean>(() => {
   return getFullQRContent() !== originalQR.value.value
 })
 
-watch([() => form.type, () => form.urlValue, () => form.textValue,
-        () => form.emailTo, () => form.emailSubject, () => form.emailBody,
-        () => form.phoneNumber, () => form.smsNumber, () => form.smsMessage,
-        () => form.wifiSSID, () => form.wifiEncryption, () => form.wifiPassword,
-        () => form.locationLat, () => form.locationLng], () => {
-  if (originalQR.value) {
-    previewContent.value = getFullQRContent()
-    validateFormValue()
-  }
-}, { deep: true })
+watch(
+  [
+    () => form.type,
+    () => form.urlValue,
+    () => form.textValue,
+    () => form.emailTo,
+    () => form.emailSubject,
+    () => form.emailBody,
+    () => form.phoneNumber,
+    () => form.smsNumber,
+    () => form.smsMessage,
+    () => form.wifiSSID,
+    () => form.wifiEncryption,
+    () => form.wifiPassword,
+    () => form.locationLat,
+    () => form.locationLng,
+  ],
+  () => {
+    if (originalQR.value) {
+      previewContent.value = getFullQRContent()
+      validateFormValue()
+    }
+  },
+  { deep: true },
+)
 
 async function loadQRData() {
   isLoading.value = true
@@ -325,7 +364,7 @@ async function loadQRData() {
       severity: 'error',
       summary: 'Error',
       detail: 'Failed to load QR code data',
-      life: 4000
+      life: 4000,
     })
     router.push('/dashboard')
   } finally {
@@ -339,7 +378,7 @@ async function updateQR() {
       severity: 'error',
       summary: 'Validation Error',
       detail: 'Please fix the validation errors',
-      life: 4000
+      life: 4000,
     })
     return
   }
@@ -350,7 +389,7 @@ async function updateQR() {
     const updateData: any = {
       name: form.name.trim(),
       type: form.type,
-      value: getFullQRContent()
+      value: getFullQRContent(),
     }
 
     if (form.type === 'wifi') {
@@ -372,7 +411,7 @@ async function updateQR() {
       severity: 'success',
       summary: 'Updated!',
       detail: 'QR code updated successfully',
-      life: 3000
+      life: 3000,
     })
 
     setTimeout(() => {
@@ -385,7 +424,7 @@ async function updateQR() {
       severity: 'error',
       summary: 'Update Failed',
       detail: 'Failed to update QR code',
-      life: 4000
+      life: 4000,
     })
   }
 }
@@ -412,12 +451,21 @@ onMounted(() => {
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
         <!-- Header -->
         <div class="text-center mb-6">
-          <div class="w-16 h-16 bg-linear-to-r from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+          <div
+            class="w-16 h-16 bg-linear-to-r from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
+          >
             <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              ></path>
             </svg>
           </div>
-          <h1 class="text-2xl md:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <h1
+            class="text-2xl md:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
+          >
             Edit QR Code
           </h1>
           <p class="text-gray-600 mt-2">Update your QR code information</p>
@@ -466,7 +514,9 @@ onMounted(() => {
         <div v-else class="space-y-4">
           <!-- QR Preview -->
           <div v-if="qrSrc" class="mb-4 p-4 bg-gray-50 rounded-lg">
-            <label class="block text-sm font-semibold text-gray-700 mb-3 text-center">Current QR Code</label>
+            <label class="block text-sm font-semibold text-gray-700 mb-3 text-center"
+              >Current QR Code</label
+            >
             <div class="flex justify-center">
               <div class="bg-white p-3 rounded-xl shadow-md border border-gray-200">
                 <img :src="qrSrc" :alt="form.name" class="w-32 h-32 object-contain" />
@@ -480,14 +530,17 @@ onMounted(() => {
             <label class="block text-sm font-semibold text-gray-700 mb-3">QR Type</label>
             <div class="grid grid-cols-4 gap-2">
               <Button
-              severity="secondary" variant="outlined"
+                severity="secondary"
+                variant="outlined"
                 v-for="type in QR_TYPES"
                 :key="type.value"
                 @click="setType(type.value)"
                 class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all cursor-pointer"
-                :class="activeTab === type.value
-                  ? 'bg-blue-50 text-blue-600 border-2 border-blue-500'
-                  : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'"
+                :class="
+                  activeTab === type.value
+                    ? 'bg-blue-50 text-blue-600 border-2 border-blue-500'
+                    : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+                "
               >
                 <i :class="type.icon" class="text-lg"></i>
                 <span class="text-xs">{{ type.label }}</span>
@@ -509,12 +562,16 @@ onMounted(() => {
               @input="validateName"
               @blur="validateName"
             />
-            <p v-if="validationErrors.name" class="text-red-500 text-xs mt-1">{{ validationErrors.name }}</p>
+            <p v-if="validationErrors.name" class="text-red-500 text-xs mt-1">
+              {{ validationErrors.name }}
+            </p>
           </div>
 
           <!-- URL Type -->
           <div v-if="form.type === 'url'">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Destination URL <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-semibold text-gray-700 mb-2"
+              >Destination URL <span class="text-red-500">*</span></label
+            >
             <InputText
               type="url"
               v-model="form.urlValue"
@@ -524,12 +581,16 @@ onMounted(() => {
               @input="validateFormValue"
               @blur="validateFormValue"
             />
-            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">{{ validationErrors.value }}</p>
+            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">
+              {{ validationErrors.value }}
+            </p>
           </div>
 
           <!-- Text Type -->
           <div v-if="form.type === 'text'">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Text Content <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-semibold text-gray-700 mb-2"
+              >Text Content <span class="text-red-500">*</span></label
+            >
             <Textarea
               v-model="form.textValue"
               placeholder="Enter your text content here..."
@@ -539,14 +600,18 @@ onMounted(() => {
               @input="validateFormValue"
               @blur="validateFormValue"
             />
-            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">{{ validationErrors.value }}</p>
+            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">
+              {{ validationErrors.value }}
+            </p>
           </div>
 
           <!-- Email Type -->
           <div v-if="form.type === 'email'">
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Email Address <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Email Address <span class="text-red-500">*</span></label
+                >
                 <InputText
                   type="email"
                   v-model="form.emailTo"
@@ -558,30 +623,38 @@ onMounted(() => {
                 />
               </div>
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Subject (Optional)</label>
-                <InputText 
-                  type="text" 
-                  v-model="form.emailSubject" 
-                  placeholder="Email subject" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Subject (Optional)</label
+                >
+                <InputText
+                  type="text"
+                  v-model="form.emailSubject"
+                  placeholder="Email subject"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Body (Optional)</label>
-                <Textarea 
-                  v-model="form.emailBody" 
-                  placeholder="Email body content..." 
-                  rows="3" 
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Body (Optional)</label
+                >
+                <Textarea
+                  v-model="form.emailBody"
+                  placeholder="Email body content..."
+                  rows="3"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
                 />
               </div>
-              <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
+              <p v-if="validationErrors.value" class="text-red-500 text-xs">
+                {{ validationErrors.value }}
+              </p>
             </div>
           </div>
 
           <!-- Phone Type -->
           <div v-if="form.type === 'phone'">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-semibold text-gray-700 mb-2"
+              >Phone Number <span class="text-red-500">*</span></label
+            >
             <InputText
               type="tel"
               v-model="form.phoneNumber"
@@ -591,14 +664,18 @@ onMounted(() => {
               @input="validateFormValue"
               @blur="validateFormValue"
             />
-            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">{{ validationErrors.value }}</p>
+            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">
+              {{ validationErrors.value }}
+            </p>
           </div>
 
           <!-- SMS Type -->
           <div v-if="form.type === 'sms'">
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Phone Number <span class="text-red-500">*</span></label
+                >
                 <InputText
                   type="tel"
                   v-model="form.smsNumber"
@@ -610,15 +687,19 @@ onMounted(() => {
                 />
               </div>
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Message (Optional)</label>
-                <Textarea 
-                  v-model="form.smsMessage" 
-                  placeholder="Pre-filled SMS message..." 
-                  rows="3" 
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Message (Optional)</label
+                >
+                <Textarea
+                  v-model="form.smsMessage"
+                  placeholder="Pre-filled SMS message..."
+                  rows="3"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
                 />
               </div>
-              <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
+              <p v-if="validationErrors.value" class="text-red-500 text-xs">
+                {{ validationErrors.value }}
+              </p>
             </div>
           </div>
 
@@ -626,7 +707,9 @@ onMounted(() => {
           <div v-if="form.type === 'wifi'">
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Network SSID <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Network SSID <span class="text-red-500">*</span></label
+                >
                 <InputText
                   type="text"
                   v-model="form.wifiSSID"
@@ -637,9 +720,11 @@ onMounted(() => {
                 />
               </div>
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Encryption Type</label>
-                <select 
-                  v-model="form.wifiEncryption" 
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Encryption Type</label
+                >
+                <select
+                  v-model="form.wifiEncryption"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
                   <option v-for="opt in wifiEncryptionOptions" :key="opt.value" :value="opt.value">
@@ -648,17 +733,21 @@ onMounted(() => {
                 </select>
               </div>
               <div v-if="form.wifiEncryption !== 'nopass'">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Password <span class="text-red-500">*</span></label>
-                <InputText 
-                  type="password" 
-                  v-model="form.wifiPassword" 
-                  placeholder="WiFi Password" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
-                  :class="{ 'border-red-500': validationErrors.value }" 
-                  @input="validateFormValue" 
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Password <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="password"
+                  v-model="form.wifiPassword"
+                  placeholder="WiFi Password"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
                 />
               </div>
-              <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
+              <p v-if="validationErrors.value" class="text-red-500 text-xs">
+                {{ validationErrors.value }}
+              </p>
             </div>
           </div>
 
@@ -666,30 +755,36 @@ onMounted(() => {
           <div v-if="form.type === 'location'">
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Latitude <span class="text-red-500">*</span></label>
-                <InputText 
-                  type="number" 
-                  step="any" 
-                  v-model="form.locationLat" 
-                  placeholder="-90 to 90" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
-                  :class="{ 'border-red-500': validationErrors.value }" 
-                  @input="validateFormValue" 
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Latitude <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="number"
+                  step="any"
+                  v-model="form.locationLat"
+                  placeholder="-90 to 90"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
                 />
               </div>
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Longitude <span class="text-red-500">*</span></label>
-                <InputText 
-                  type="number" 
-                  step="any" 
-                  v-model="form.locationLng" 
-                  placeholder="-180 to 180" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
-                  :class="{ 'border-red-500': validationErrors.value }" 
-                  @input="validateFormValue" 
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Longitude <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="number"
+                  step="any"
+                  v-model="form.locationLng"
+                  placeholder="-180 to 180"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
                 />
               </div>
-              <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
+              <p v-if="validationErrors.value" class="text-red-500 text-xs">
+                {{ validationErrors.value }}
+              </p>
               <p class="text-gray-400 text-xs">Example: 40.7128, -74.0060 (New York City)</p>
             </div>
           </div>
@@ -703,7 +798,8 @@ onMounted(() => {
           <!-- Action Buttons -->
           <div class="flex gap-3 pt-4">
             <Button
-              severity="secondary" variant="outlined"
+              severity="secondary"
+              variant="outlined"
               @click="cancel"
               class="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer"
             >
@@ -713,9 +809,11 @@ onMounted(() => {
               @click="updateQR"
               :disabled="!isFormValid || !hasChanges || isSaving"
               class="flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              :class="!isFormValid || !hasChanges || isSaving
-                ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'"
+              :class="
+                !isFormValid || !hasChanges || isSaving
+                  ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                  : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'
+              "
             >
               <i v-if="isSaving" class="pi pi-spin pi-spinner mr-2"></i>
               {{ isSaving ? 'Updating...' : 'Update QR Code' }}

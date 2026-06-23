@@ -1,6 +1,6 @@
 // stores/authStore.ts
 import { ref } from 'vue'
-import { api } from '../services/api'  // Import shared api instance
+import { api } from '../services/api' // Import shared api instance
 
 export interface User {
   id: number
@@ -40,9 +40,7 @@ const handleApiError = (error: unknown): never => {
 }
 
 // 🆕 Profile image (stored as data URL in localStorage)
-export const profileImage = ref<string | null>(
-  localStorage.getItem('profile_image') || null
-)
+export const profileImage = ref<string | null>(localStorage.getItem('profile_image') || null)
 
 // 🆕 Update profile image (persist to localStorage)
 export function setProfileImage(image: string | null) {
@@ -97,7 +95,7 @@ export async function login(data: LoginData): Promise<void> {
   try {
     const response = await api.post<{ token: string; user: User }>('/auth/login', data)
     const { token, user } = response.data
-    
+
     localStorage.setItem('auth_token', token)
     currentUser.value = user
     isAuthenticated.value = true
@@ -112,7 +110,7 @@ export async function signup(data: SignupData): Promise<void> {
   try {
     const response = await api.post<{ token: string; user: User }>('/auth/signup', data)
     const { token, user } = response.data
-    
+
     localStorage.setItem('auth_token', token)
     currentUser.value = user
     isAuthenticated.value = true

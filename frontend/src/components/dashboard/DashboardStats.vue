@@ -1,7 +1,9 @@
 <template>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <!-- Total QR -->
-    <div class="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl p-4 shadow-sm border border-blue-200/50">
+    <div
+      class="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl p-4 shadow-sm border border-blue-200/50"
+    >
       <div class="flex items-center justify-between">
         <div>
           <p class="text-blue-700 text-sm font-medium">Total QR</p>
@@ -13,7 +15,9 @@
     </div>
 
     <!-- Total Scans -->
-    <div class="bg-linear-to-br from-green-50 to-green-100 rounded-xl p-4 shadow-sm border border-green-200/50">
+    <div
+      class="bg-linear-to-br from-green-50 to-green-100 rounded-xl p-4 shadow-sm border border-green-200/50"
+    >
       <div class="flex items-center justify-between">
         <div>
           <p class="text-green-700 text-sm font-medium">Total Scans</p>
@@ -25,7 +29,9 @@
     </div>
 
     <!-- Last Created -->
-    <div class="bg-linear-to-br from-purple-50 to-purple-100 rounded-xl p-4 shadow-sm border border-purple-200/50">
+    <div
+      class="bg-linear-to-br from-purple-50 to-purple-100 rounded-xl p-4 shadow-sm border border-purple-200/50"
+    >
       <div class="flex items-center justify-between">
         <div>
           <p class="text-purple-700 text-sm font-medium">Last Created</p>
@@ -37,7 +43,9 @@
     </div>
 
     <!-- Types Used -->
-    <div class="bg-linear-to-br from-orange-50 to-orange-100 rounded-xl p-4 shadow-sm border border-orange-200/50">
+    <div
+      class="bg-linear-to-br from-orange-50 to-orange-100 rounded-xl p-4 shadow-sm border border-orange-200/50"
+    >
       <div class="flex items-center justify-between">
         <div>
           <p class="text-orange-700 text-sm font-medium">Types Used</p>

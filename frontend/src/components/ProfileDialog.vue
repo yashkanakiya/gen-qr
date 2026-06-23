@@ -40,13 +40,17 @@ const initials = computed(() => {
   return getInitials(name)
 })
 
-watch(() => props.visible, (visible) => {
-  if (visible && currentUser.value) {
-    username.value = currentUser.value.username
-    email.value = currentUser.value.email
-    imagePreview.value = profileImage.value
-  }
-}, { immediate: true })
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible && currentUser.value) {
+      username.value = currentUser.value.username
+      email.value = currentUser.value.email
+      imagePreview.value = profileImage.value
+    }
+  },
+  { immediate: true },
+)
 
 function onFileSelected(event: Event) {
   const input = event.target as HTMLInputElement
@@ -79,7 +83,7 @@ function saveProfile() {
     severity: 'success',
     summary: 'Profile Updated',
     detail: 'Your profile has been updated successfully.',
-    life: 3000
+    life: 3000,
   })
 
   emit('update:visible', false)
@@ -132,7 +136,9 @@ function closeDialog() {
       <!-- Form -->
       <div class="w-full space-y-5 mt-1">
         <div class="field">
-          <label for="username" class="block text-sm font-medium text-gray-700 mb-3">Username</label>
+          <label for="username" class="block text-sm font-medium text-gray-700 mb-3"
+            >Username</label
+          >
           <InputText
             id="username"
             v-model="username"
@@ -142,28 +148,14 @@ function closeDialog() {
         </div>
         <div class="field mt-5">
           <label for="email" class="block text-sm font-medium text-gray-700 mb-3">Email</label>
-          <InputText
-            id="email"
-            v-model="email"
-            disabled
-            class="w-full bg-gray-50 profile-input"
-          />
+          <InputText id="email" v-model="email" disabled class="w-full bg-gray-50 profile-input" />
         </div>
       </div>
 
       <!-- Actions -->
       <div class="flex justify-end gap-3 w-full mt-2">
-        <Button
-          label="Cancel"
-          severity="secondary"
-          variant="outlined"
-          @click="closeDialog"
-        />
-        <Button
-          label="Save"
-          class="save-btn"
-          @click="saveProfile"
-        />
+        <Button label="Cancel" severity="secondary" variant="outlined" @click="closeDialog" />
+        <Button label="Save" class="save-btn" @click="saveProfile" />
       </div>
     </div>
   </Dialog>

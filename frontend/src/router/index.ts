@@ -6,86 +6,86 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     // Public pages
-      {
+    {
       path: '/',
       name: 'home',
       component: () => import('../views/Home.vue'),
       meta: { requiresAuth: false },
       beforeEnter: (to, from) => {
         if (isAuthenticated.value) {
-          return '/dashboard'   // return the redirect path
+          return '/dashboard' // return the redirect path
         }
         return true
-      }
+      },
     },
     {
       path: '/pricing',
       name: 'pricing',
       component: () => import('../views/Pricing.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     {
       path: '/faq',
       name: 'faq',
       component: () => import('../views/FAQ.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     {
       path: '/contact',
       name: 'contact',
       component: () => import('../views/Contact.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     {
       path: '/terms',
       name: 'terms',
       component: () => import('../views/Terms.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     {
       path: '/privacy',
       name: 'privacy',
       component: () => import('../views/Privacy.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     // Auth pages
     {
       path: '/login',
       name: 'login',
       component: () => import('../views/Login.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     {
       path: '/signup',
       name: 'signup',
       component: () => import('../views/Signup.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false },
     },
     // Protected pages
     {
       path: '/dashboard',
       name: 'dashboard',
       component: () => import('../views/Dashboard.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true },
     },
     {
       path: '/create-qr',
       name: 'createQr',
       component: () => import('../views/CreateQR.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true },
     },
     {
       path: '/edit-qr/:id',
       name: 'editQr',
       component: () => import('../views/EditQR.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true },
     },
     // Catch-all redirect
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/'
-    }
-  ]
+      redirect: '/',
+    },
+  ],
 })
 
 // Navigation guard
@@ -93,7 +93,7 @@ router.beforeEach(async (to, from) => {
   const requiresAuth = to.meta.requiresAuth !== false
 
   if (isAuthLoading.value) {
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       const checkInterval = setInterval(() => {
         if (!isAuthLoading.value) {
           clearInterval(checkInterval)

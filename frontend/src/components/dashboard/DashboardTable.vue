@@ -1,24 +1,42 @@
 <template>
   <div>
     <!-- Desktop Table -->
-    <div class="hidden sm:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div
+      class="hidden sm:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+    >
       <!-- Skeleton Loading Table -->
       <div v-if="loading" class="overflow-x-auto">
         <table class="w-full min-w-[500px]">
           <thead class="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th class="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-              <th class="p-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">QR Code</th>
-              <th class="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th class="p-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th class="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Created At
+              </th>
+              <th
+                class="p-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                QR Code
+              </th>
+              <th class="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Name
+              </th>
+              <th
+                class="p-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <tr v-for="i in (rowsPerPage || 5)" :key="i" class="animate-pulse">
+            <tr v-for="i in rowsPerPage || 5" :key="i" class="animate-pulse">
               <td class="p-3"><Skeleton width="5rem" height="1.5rem" /></td>
-              <td class="p-3 text-center"><Skeleton shape="circle" size="2.5rem" class="mx-auto" /></td>
+              <td class="p-3 text-center">
+                <Skeleton shape="circle" size="2.5rem" class="mx-auto" />
+              </td>
               <td class="p-3"><Skeleton width="6rem" height="1.5rem" /></td>
-              <td class="p-3 text-center"><Skeleton width="2rem" height="2rem" class="mx-auto" /></td>
+              <td class="p-3 text-center">
+                <Skeleton width="2rem" height="2rem" class="mx-auto" />
+              </td>
             </tr>
           </tbody>
         </table>
@@ -43,14 +61,24 @@
 
         <Column header="QR Code" class="text-center">
           <template #body="{ data }">
-            <img :src="data.qrSrc" :alt="data.name" class="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-lg bg-gray-50 p-1" />
+            <img
+              :src="data.qrSrc"
+              :alt="data.name"
+              class="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-lg bg-gray-50 p-1"
+            />
           </template>
         </Column>
 
         <Column field="name" header="Name" class="text-sm">
           <template #body="{ data }">
             <div class="flex items-center gap-2">
-              <i :class="[qrTypesMap?.[data.type]?.icon || 'pi pi-qrcode', getIconColorClass(qrTypesMap?.[data.type]?.color)]" class="text-xs sm:text-sm"></i>
+              <i
+                :class="[
+                  qrTypesMap?.[data.type]?.icon || 'pi pi-qrcode',
+                  getIconColorClass(qrTypesMap?.[data.type]?.color),
+                ]"
+                class="text-xs sm:text-sm"
+              ></i>
               <span class="font-medium text-gray-800 text-sm sm:text-base">{{ data.name }}</span>
             </div>
           </template>
@@ -70,7 +98,9 @@
 
         <template #empty>
           <div class="text-center py-12">
-            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div
+              class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"
+            >
               <i class="pi pi-search text-2xl text-gray-400"></i>
             </div>
             <h3 class="text-lg font-semibold text-gray-900 mb-2">No matching QR codes</h3>
@@ -89,7 +119,12 @@
     <!-- Mobile Cards -->
     <div class="block sm:hidden space-y-4">
       <!-- Skeleton cards -->
-      <div v-if="loading" v-for="i in 3" :key="i" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
+      <div
+        v-if="loading"
+        v-for="i in 3"
+        :key="i"
+        class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse"
+      >
         <div class="flex items-center gap-4">
           <Skeleton shape="circle" size="4rem" />
           <div class="flex-1">
@@ -116,7 +151,13 @@
           </div>
           <div class="flex-1">
             <div class="flex items-center gap-2 mb-1">
-              <i :class="[qrTypesMap?.[qr.type]?.icon || 'pi pi-qrcode', getIconColorClass(qrTypesMap?.[qr.type]?.color)]" class="text-sm"></i>
+              <i
+                :class="[
+                  qrTypesMap?.[qr.type]?.icon || 'pi pi-qrcode',
+                  getIconColorClass(qrTypesMap?.[qr.type]?.color),
+                ]"
+                class="text-sm"
+              ></i>
               <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
                 {{ qrTypesMap?.[qr.type]?.label || qr.type }}
               </span>
@@ -165,7 +206,10 @@
       </div>
 
       <!-- Mobile Pagination -->
-      <div v-if="!loading && filteredQRCodes.length > 0" class="flex justify-between items-center mt-4 pb-4">
+      <div
+        v-if="!loading && filteredQRCodes.length > 0"
+        class="flex justify-between items-center mt-4 pb-4"
+      >
         <button
           @click="$emit('pageChange', currentPage - 1)"
           :disabled="currentPage === 1"
@@ -183,8 +227,13 @@
         </button>
       </div>
 
-      <div v-if="!loading && filteredQRCodes.length === 0" class="text-center py-12 bg-white rounded-xl">
-        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <div
+        v-if="!loading && filteredQRCodes.length === 0"
+        class="text-center py-12 bg-white rounded-xl"
+      >
+        <div
+          class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"
+        >
           <i class="pi pi-search text-2xl text-gray-400"></i>
         </div>
         <h3 class="text-lg font-semibold text-gray-900 mb-2">No matching QR codes</h3>
@@ -210,25 +259,28 @@ import type { QRCodeItem } from '../../stores/qrStore'
 import { getRedirectUrl } from '../../stores/qrStore'
 
 // Props
-const props = withDefaults(defineProps<{
-  qrCodes?: QRCodeItem[]
-  loading?: boolean
-  rowsPerPage?: number
-  rowsPerPageOptions?: number[]
-  currentPage?: number
-  qrTypesMap?: Record<string, { label: string; icon: string; color: string }>
-  getIconColorClass?: (color: string | undefined) => string
-  formatDate?: (dateStr: string) => string
-}>(), {
-  qrCodes: () => [],
-  loading: false,
-  rowsPerPage: 5,
-  rowsPerPageOptions: () => [5, 10, 20],
-  currentPage: 1,
-  qrTypesMap: () => ({}),
-  getIconColorClass: () => '',
-  formatDate: () => ''
-})
+const props = withDefaults(
+  defineProps<{
+    qrCodes?: QRCodeItem[]
+    loading?: boolean
+    rowsPerPage?: number
+    rowsPerPageOptions?: number[]
+    currentPage?: number
+    qrTypesMap?: Record<string, { label: string; icon: string; color: string }>
+    getIconColorClass?: (color: string | undefined) => string
+    formatDate?: (dateStr: string) => string
+  }>(),
+  {
+    qrCodes: () => [],
+    loading: false,
+    rowsPerPage: 5,
+    rowsPerPageOptions: () => [5, 10, 20],
+    currentPage: 1,
+    qrTypesMap: () => ({}),
+    getIconColorClass: () => '',
+    formatDate: () => '',
+  },
+)
 
 // Emits
 const emit = defineEmits<{
@@ -241,7 +293,9 @@ const emit = defineEmits<{
 
 // Computed for mobile pagination
 const filteredQRCodes = computed(() => props.qrCodes || [])
-const totalPages = computed(() => Math.ceil(filteredQRCodes.value.length / (props.rowsPerPage || 5)))
+const totalPages = computed(() =>
+  Math.ceil(filteredQRCodes.value.length / (props.rowsPerPage || 5)),
+)
 const paginatedQRCodes = computed(() => {
   const start = ((props.currentPage || 1) - 1) * (props.rowsPerPage || 5)
   const end = start + (props.rowsPerPage || 5)

@@ -98,7 +98,7 @@ export async function getQRCodeAnalytics(id: string): Promise<ScanAnalytics> {
   try {
     const response = await api.get<ScanAnalytics>(`/qrcodes/${id}/analytics`)
     // Update the scan_count in the local array
-    const qr = qrCodes.value.find(q => q.id === id)
+    const qr = qrCodes.value.find((q) => q.id === id)
     if (qr && response.data.total_scans !== undefined) {
       qr.scan_count = response.data.total_scans
     }
@@ -108,12 +108,12 @@ export async function getQRCodeAnalytics(id: string): Promise<ScanAnalytics> {
   }
 }
 
-export async function saveQRCode(data: { 
-  name: string; 
-  type: string; 
-  value: string;
-  wifiEncryption?: string;
-  wifiPassword?: string;
+export async function saveQRCode(data: {
+  name: string
+  type: string
+  value: string
+  wifiEncryption?: string
+  wifiPassword?: string
 }): Promise<QRCodeApiResponse> {
   try {
     const response = await api.post<QRCodeApiResponse>('/qrcodes', data)
@@ -124,13 +124,16 @@ export async function saveQRCode(data: {
   }
 }
 
-export async function updateQRCode(id: string, updates: { 
-  name?: string; 
-  value?: string; 
-  type?: string;
-  wifiEncryption?: string;
-  wifiPassword?: string;
-}): Promise<QRCodeApiResponse> {
+export async function updateQRCode(
+  id: string,
+  updates: {
+    name?: string
+    value?: string
+    type?: string
+    wifiEncryption?: string
+    wifiPassword?: string
+  },
+): Promise<QRCodeApiResponse> {
   try {
     const response = await api.put<QRCodeApiResponse>(`/qrcodes/${id}`, updates)
     const index = qrCodes.value.findIndex((qr) => qr.id === id)

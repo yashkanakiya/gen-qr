@@ -9,11 +9,23 @@
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-        <InputText v-model="form.email" type="email" class="w-full" placeholder="you@example.com" required />
+        <InputText
+          v-model="form.email"
+          type="email"
+          class="w-full"
+          placeholder="you@example.com"
+          required
+        />
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Message</label>
-        <Textarea v-model="form.message" rows="5" class="w-full" placeholder="How can we help?" required />
+        <Textarea
+          v-model="form.message"
+          rows="5"
+          class="w-full"
+          placeholder="How can we help?"
+          required
+        />
       </div>
       <Button
         type="submit"
@@ -22,7 +34,12 @@
       />
     </form>
     <div class="mt-8 text-center text-gray-500 text-sm">
-      <p>Or reach us directly at <a href="mailto:support@genqr.com" class="text-blue-600 hover:underline">support@genqr.com</a></p>
+      <p>
+        Or reach us directly at
+        <a href="mailto:support@genqr.com" class="text-blue-600 hover:underline"
+          >support@genqr.com</a
+        >
+      </p>
     </div>
   </div>
 </template>
@@ -38,7 +55,12 @@ const toast = useToast()
 const form = reactive({ name: '', email: '', message: '' })
 
 function handleSubmit() {
-  toast.add({ severity: 'success', summary: 'Message Sent', detail: 'We will get back to you soon!', life: 3000 })
+  toast.add({
+    severity: 'success',
+    summary: 'Message Sent',
+    detail: 'We will get back to you soon!',
+    life: 3000,
+  })
   Object.assign(form, { name: '', email: '', message: '' })
 }
 </script>

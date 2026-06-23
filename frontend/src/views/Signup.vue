@@ -17,11 +17,11 @@
         <form @submit.prevent="handleSignup" class="space-y-5">
           <!-- Username Field -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Username
-            </label>
+            <label class="block text-sm font-medium text-gray-700 mb-2"> Username </label>
             <div class="relative">
-              <i class="pi pi-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <i
+                class="pi pi-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"
+              ></i>
               <input
                 v-model="form.username"
                 type="text"
@@ -34,11 +34,11 @@
 
           <!-- Email Field -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </label>
+            <label class="block text-sm font-medium text-gray-700 mb-2"> Email Address </label>
             <div class="relative">
-              <i class="pi pi-envelope absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <i
+                class="pi pi-envelope absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"
+              ></i>
               <input
                 v-model="form.email"
                 type="email"
@@ -51,11 +51,11 @@
 
           <!-- Password Field -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
+            <label class="block text-sm font-medium text-gray-700 mb-2"> Password </label>
             <div class="relative">
-              <i class="pi pi-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <i
+                class="pi pi-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"
+              ></i>
               <input
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
@@ -71,18 +71,16 @@
                 <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
               </button>
             </div>
-            <div class="mt-2 text-xs text-gray-500">
-              Password must be at least 6 characters
-            </div>
+            <div class="mt-2 text-xs text-gray-500">Password must be at least 6 characters</div>
           </div>
 
           <!-- Confirm Password Field -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              Confirm Password
-            </label>
+            <label class="block text-sm font-medium text-gray-700 mb-2"> Confirm Password </label>
             <div class="relative">
-              <i class="pi pi-check-circle absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <i
+                class="pi pi-check-circle absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"
+              ></i>
               <input
                 v-model="form.confirmPassword"
                 :type="showConfirmPassword ? 'text' : 'password'"
@@ -186,7 +184,7 @@ const form = reactive({
   username: '',
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
 })
 
 async function handleSignup() {
@@ -196,7 +194,7 @@ async function handleSignup() {
       severity: 'error',
       summary: 'Validation Error',
       detail: 'Please fill in all fields',
-      life: 4000
+      life: 4000,
     })
     return
   }
@@ -206,7 +204,7 @@ async function handleSignup() {
       severity: 'error',
       summary: 'Validation Error',
       detail: 'Password must be at least 6 characters',
-      life: 4000
+      life: 4000,
     })
     return
   }
@@ -216,7 +214,7 @@ async function handleSignup() {
       severity: 'error',
       summary: 'Validation Error',
       detail: 'Passwords do not match',
-      life: 4000
+      life: 4000,
     })
     return
   }
@@ -226,26 +224,26 @@ async function handleSignup() {
       severity: 'warn',
       summary: 'Terms Required',
       detail: 'Please agree to the Terms of Service and Privacy Policy',
-      life: 4000
+      life: 4000,
     })
     return
   }
 
   isLoading.value = true
-  
+
   try {
     await signup(form)
     toast.add({
       severity: 'success',
       summary: 'Success',
       detail: 'Account created successfully!',
-      life: 3000
+      life: 3000,
     })
     router.push('/dashboard')
   } catch (error: any) {
     // Properly extract error message from backend
     let errorMessage = 'Failed to create account'
-    
+
     if (axios.isAxiosError(error)) {
       // Handle axios error
       if (error.response?.data?.error) {
@@ -258,12 +256,12 @@ async function handleSignup() {
     } else if (error instanceof Error) {
       errorMessage = error.message
     }
-    
+
     toast.add({
       severity: 'error',
       summary: 'Signup Failed',
       detail: errorMessage,
-      life: 4000
+      life: 4000,
     })
   } finally {
     isLoading.value = false
