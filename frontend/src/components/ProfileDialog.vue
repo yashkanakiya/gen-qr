@@ -4,7 +4,7 @@ import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
-import { currentUser, profileImage, setProfileImage, updateUserUsername } from '../stores/authStore'
+import { currentUser, profileImage, updateUserProfile } from '../stores/authStore'
 
 const toast = useToast()
 
@@ -16,6 +16,7 @@ const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
 }>()
 
+const isSaving = ref(false)
 const username = ref('')
 const email = ref('')
 const imagePreview = ref<string | null>(null)
@@ -26,13 +27,15 @@ const getInitials = (name: string): string => {
   const trimmed = name.trim()
   if (trimmed.length === 0) return '?'
   const parts = trimmed.split(/\s+/)
+  if (parts.length === 0) return '?'
   if (parts.length === 1) {
-    return parts[0].substring(0, 2).toUpperCase()
+    const first = parts[0] || ''
+    return first.substring(0, 2).toUpperCase()
   }
-  const first = parts[0]?.[0] || ''
-  const second = parts[1]?.[0] || ''
-  const combined = (first + second).toUpperCase()
-  return combined || parts[0].substring(0, 2).toUpperCase()
+  const first = parts[0] || ''
+  const second = parts[1] || ''
+  const combined = (first.charAt(0) + second.charAt(0)).toUpperCase()
+  return combined || first.substring(0, 2).toUpperCase()
 }
 
 const initials = computed(() => {
@@ -68,25 +71,32 @@ function triggerFileUpload() {
   fileInput.value?.click()
 }
 
-function saveProfile() {
+async function saveProfile() {
   if (!currentUser.value) return
 
-  if (username.value.trim() !== currentUser.value.username) {
-    updateUserUsername(username.value.trim())
+  isSaving.value = true
+  try {
+    await updateUserProfile(
+      username.value.trim(),
+      imagePreview.value || null, // send null to remove avatar
+    )
+    toast.add({
+      severity: 'success',
+      summary: 'Profile Updated',
+      detail: 'Your profile has been updated successfully.',
+      life: 3000,
+    })
+    emit('update:visible', false)
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Update Failed',
+      detail: error instanceof Error ? error.message : 'Could not update profile',
+      life: 4000,
+    })
+  } finally {
+    isSaving.value = false
   }
-
-  if (imagePreview.value !== profileImage.value) {
-    setProfileImage(imagePreview.value)
-  }
-
-  toast.add({
-    severity: 'success',
-    summary: 'Profile Updated',
-    detail: 'Your profile has been updated successfully.',
-    life: 3000,
-  })
-
-  emit('update:visible', false)
 }
 
 function closeDialog() {

@@ -54,13 +54,15 @@ const getInitials = (name: string): string => {
   const trimmed = name.trim()
   if (trimmed.length === 0) return '?'
   const parts = trimmed.split(/\s+/)
+  if (parts.length === 0) return '?'
   if (parts.length === 1) {
-    return parts[0].substring(0, 2).toUpperCase()
+    const first = parts[0] || ''
+    return first.substring(0, 2).toUpperCase()
   }
-  const first = parts[0]?.[0] || ''
-  const second = parts[1]?.[0] || ''
-  const combined = (first + second).toUpperCase()
-  return combined || parts[0].substring(0, 2).toUpperCase()
+  const first = parts[0] || ''
+  const second = parts[1] || ''
+  const combined = (first.charAt(0) + second.charAt(0)).toUpperCase()
+  return combined || first.substring(0, 2).toUpperCase()
 }
 
 const avatarInitials = computed(() => {

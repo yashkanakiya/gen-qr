@@ -1,19 +1,19 @@
 // database/database.js
-import pkg from 'pg';
+import pkg from "pg";
 const { Pool } = pkg;
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // PostgreSQL connection pool local
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || "localhost",
   port: process.env.DB_PORT || 5432,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'yourpassword',
-  database: process.env.DB_NAME || 'qr_scanner',
+  user: process.env.DB_USER || "postgres",
+  password: process.env.DB_PASSWORD || "yourpassword",
+  database: process.env.DB_NAME || "qr_scanner",
   max: 20,
   idleTimeoutMillis: 30000,
 });
@@ -28,12 +28,21 @@ const pool = new Pool({
 
 // Helper to generate unique slug
 const generateSlug = () => {
-  return Math.random().toString(36).substring(2, 10) + 
-         Date.now().toString(36);
+  return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
 };
 
 // Initialize database tables
 const initDatabase = async () => {
+  const alterUsersTable = `
+  DO $$ 
+  BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='avatar') THEN 
+      ALTER TABLE users ADD COLUMN avatar TEXT;
+    END IF;
+  END $$;
+`;
+  await pool.query(alterUsersTable);
+
   const createUsersTable = `
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -100,29 +109,55 @@ const initDatabase = async () => {
 const dbOperations = {
   // ----- Users -----
   createUser: async (userData) => {
-    const { username, email, password } = userData;
+    const { username, email, password, avatar = null } = userData;
     const result = await pool.query(
-      `INSERT INTO users (username, email, password) 
-       VALUES ($1, $2, $3) RETURNING id, username, email, created_at`,
-      [username, email, password]
+      `INSERT INTO users (username, email, password, avatar) 
+     VALUES ($1, $2, $3, $4) RETURNING id, username, email, avatar, created_at`,
+      [username, email, password, avatar],
     );
     return result.rows[0];
   },
 
   getUserByEmail: async (email) => {
     const result = await pool.query(
-      `SELECT * FROM users WHERE email = $1`,
-      [email]
+      `SELECT id, username, email, password, avatar, created_at FROM users WHERE email = $1`,
+      [email],
     );
     return result.rows[0];
   },
 
   getUserById: async (id) => {
     const result = await pool.query(
-      `SELECT id, username, email, created_at FROM users WHERE id = $1`,
-      [id]
+      `SELECT id, username, email, avatar, created_at FROM users WHERE id = $1`,
+      [id],
     );
     return result.rows[0];
+  },
+
+  updateUserProfile: async (userId, updates) => {
+    const fields = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (updates.username !== undefined) {
+      fields.push(`username = $${paramIndex++}`);
+      values.push(updates.username);
+    }
+    if (updates.avatar !== undefined) {
+      fields.push(`avatar = $${paramIndex++}`);
+      values.push(updates.avatar);
+    }
+
+    if (fields.length === 0) return null;
+
+    values.push(userId);
+    await pool.query(
+      `UPDATE users SET ${fields.join(", ")} WHERE id = $${paramIndex}`,
+      values,
+    );
+
+    // Return updated user
+    return await dbOperations.getUserById(userId);
   },
 
   // ----- QR Codes -----
@@ -130,7 +165,7 @@ const dbOperations = {
     const result = await pool.query(
       `SELECT id, slug, name, type, value, qr_src, scan_count, created_at, updated_at 
        FROM qr_codes WHERE user_id = $1 ORDER BY created_at DESC`,
-      [userId]
+      [userId],
     );
     return result.rows;
   },
@@ -139,7 +174,7 @@ const dbOperations = {
     const result = await pool.query(
       `SELECT id, slug, name, type, value, qr_src, scan_count, created_at, updated_at 
        FROM qr_codes WHERE id = $1 AND user_id = $2`,
-      [id, userId]
+      [id, userId],
     );
     return result.rows[0];
   },
@@ -148,7 +183,7 @@ const dbOperations = {
     const result = await pool.query(
       `SELECT id, slug, name, type, value, scan_count 
        FROM qr_codes WHERE slug = $1`,
-      [slug]
+      [slug],
     );
     return result.rows[0];
   },
@@ -161,7 +196,7 @@ const dbOperations = {
       `INSERT INTO qr_codes (slug, name, type, value, qr_src, user_id) 
        VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING id, slug, name, type, value, qr_src, scan_count, created_at, updated_at`,
-      [slug, name, type || 'url', value, qrSrc, userId]
+      [slug, name, type || "url", value, qrSrc, userId],
     );
     return result.rows[0];
   },
@@ -196,7 +231,7 @@ const dbOperations = {
     await pool.query(
       `UPDATE qr_codes SET ${fields.join(", ")} 
        WHERE id = $${paramIndex++} AND user_id = $${paramIndex}`,
-      values
+      values,
     );
 
     return await dbOperations.getById(id, userId);
@@ -204,30 +239,34 @@ const dbOperations = {
 
   delete: async (id, userId) => {
     await pool.query(`DELETE FROM scan_analytics WHERE qr_id = $1`, [id]);
-    await pool.query(`DELETE FROM qr_codes WHERE id = $1 AND user_id = $2`, [id, userId]);
+    await pool.query(`DELETE FROM qr_codes WHERE id = $1 AND user_id = $2`, [
+      id,
+      userId,
+    ]);
     return true;
   },
 
   incrementScanCount: async (id) => {
     await pool.query(
       `UPDATE qr_codes SET scan_count = scan_count + 1 WHERE id = $1`,
-      [id]
+      [id],
     );
   },
 
   // ----- Analytics -----
   addScanAnalytics: async (qrId, req) => {
     try {
-      const ip = req.headers['x-forwarded-for'] || 
-                 req.socket?.remoteAddress || 
-                 req.connection?.remoteAddress || 
-                 'unknown';
-      const userAgent = req.headers['user-agent'] || '';
+      const ip =
+        req.headers["x-forwarded-for"] ||
+        req.socket?.remoteAddress ||
+        req.connection?.remoteAddress ||
+        "unknown";
+      const userAgent = req.headers["user-agent"] || "";
 
       const result = await pool.query(
         `INSERT INTO scan_analytics (qr_id, ip, user_agent, scanned_at) 
          VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING id`,
-        [qrId, ip, userAgent]
+        [qrId, ip, userAgent],
       );
       return result.rows[0];
     } catch (error) {
@@ -243,7 +282,7 @@ const dbOperations = {
     const scans = await pool.query(
       `SELECT scanned_at, ip, country, device_type, browser, os, referer 
        FROM scan_analytics WHERE qr_id = $1 ORDER BY scanned_at DESC`,
-      [qrId]
+      [qrId],
     );
 
     const stats = await pool.query(
@@ -252,32 +291,36 @@ const dbOperations = {
          COUNT(DISTINCT ip) as unique_visitors,
          COUNT(DISTINCT country) as countries
        FROM scan_analytics WHERE qr_id = $1`,
-      [qrId]
+      [qrId],
     );
 
     const lastScan = await pool.query(
       `SELECT scanned_at FROM scan_analytics WHERE qr_id = $1 
        ORDER BY scanned_at DESC LIMIT 1`,
-      [qrId]
+      [qrId],
     );
 
     const scansByDay = await pool.query(
       `SELECT DATE(scanned_at) as date, COUNT(*) as count 
        FROM scan_analytics WHERE qr_id = $1 
        GROUP BY DATE(scanned_at) ORDER BY date DESC LIMIT 30`,
-      [qrId]
+      [qrId],
     );
 
-    const s = stats.rows[0] || { total_scans: 0, unique_visitors: 0, countries: 0 };
+    const s = stats.rows[0] || {
+      total_scans: 0,
+      unique_visitors: 0,
+      countries: 0,
+    };
     return {
       total_scans: parseInt(s.total_scans) || 0,
       unique_visitors: parseInt(s.unique_visitors) || 0,
       countries: parseInt(s.countries) || 0,
       last_scan: lastScan.rows[0]?.scanned_at || null,
       scans_by_day: scansByDay.rows,
-      recent_scans: scans.rows.slice(0, 50)
+      recent_scans: scans.rows.slice(0, 50),
     };
-  }
+  },
 };
 
 // 🔧 EXPORT generateSlug so it can be used elsewhere

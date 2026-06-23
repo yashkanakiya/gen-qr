@@ -46,10 +46,7 @@ const actionMenuItems = ref<any[]>([])
 const mobileActionMenu = ref()
 const downloadLoading = ref(false)
 
-// Search filter
 const searchQuery = ref('')
-
-// Pagination state for mobile cards
 const currentPage = ref(1)
 const rowsPerPage = ref(5)
 const rowsPerPageOptions = [5, 10, 20]
@@ -65,8 +62,8 @@ const qrTypesMap: Record<string, { label: string; icon: string; color: string }>
   location: { label: 'Location', icon: 'pi pi-map-marker', color: 'red' },
 }
 
-// Helper functions
-const getIconColorClass = (color: string | undefined) => {
+// ----- Helpers (all logic is here, template is clean) -----
+const getIconColorClass = (color: string | undefined): string => {
   switch (color) {
     case 'blue':
       return 'text-blue-500'
@@ -87,7 +84,51 @@ const getIconColorClass = (color: string | undefined) => {
   }
 }
 
-const formatDate = (dateStr: string) => {
+// Returns combined icon + color class for a QR item
+const getIconClass = (qr: QRCodeItem | null): string => {
+  if (!qr) return 'pi pi-qrcode text-gray-500'
+  const type = qr.type || 'url'
+  const icon = qrTypesMap[type]?.icon || 'pi pi-qrcode'
+  const colorClass = getIconColorClass(qrTypesMap[type]?.color)
+  return `${icon} ${colorClass}`
+}
+
+// Returns device icon class for analytics scan
+const getDeviceIconClass = (scan: any): string => {
+  if (scan.device_type === 'Mobile') return 'pi pi-mobile'
+  if (scan.device_type === 'Tablet') return 'pi pi-tablet'
+  return 'pi pi-desktop'
+}
+
+// Returns class string for size selection button
+const getSizeButtonClass = (sizeValue: number): string => {
+  return downloadQRSize.value === sizeValue
+    ? 'border-blue-500 bg-blue-50 text-blue-700'
+    : 'border-gray-200 hover:border-blue-300'
+}
+
+// ----- Safe getters for view modal -----
+const viewQRName = computed(() => viewSelectedQR.value?.name || 'Unnamed QR')
+const viewQRSrc = computed(() => viewSelectedQR.value?.qrSrc || '')
+const viewQRTypeLabel = computed(() => {
+  const type = viewSelectedQR.value?.type || 'url'
+  return qrTypesMap[type]?.label || type
+})
+const viewQRScanCount = computed(() => viewSelectedQR.value?.scan_count || 0)
+const viewQRCreatedAt = computed(() => viewSelectedQR.value?.created_at || '')
+const viewQRTypeIconClass = computed(() => getIconClass(viewSelectedQR.value))
+const viewQRType = computed(() => viewSelectedQR.value?.type || 'url')
+
+// ----- Safe getters for download modal -----
+const downloadQRName = computed(() => viewSelectedQR.value?.name || 'Unnamed QR')
+const downloadQRSrc = computed(() => viewSelectedQR.value?.qrSrc || '')
+
+// ----- Safe getter for analytics modal -----
+const selectedQRName = computed(() => selectedQR.value?.name || 'Unnamed QR')
+
+// ----- Date helpers -----
+const formatDate = (dateStr: string): string => {
+  if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -95,7 +136,8 @@ const formatDate = (dateStr: string) => {
   })
 }
 
-const formatDateTime = (dateStr: string) => {
+const formatDateTime = (dateStr: string): string => {
+  if (!dateStr) return ''
   return new Date(dateStr).toLocaleString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -105,7 +147,7 @@ const formatDateTime = (dateStr: string) => {
   })
 }
 
-const formatLastScan = (dateStr: string | null) => {
+const formatLastScan = (dateStr: string | null): string => {
   if (!dateStr) return 'Never'
   const date = new Date(dateStr)
   const now = new Date()
@@ -120,6 +162,7 @@ const formatLastScan = (dateStr: string | null) => {
   return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
 }
 
+// ----- Other helpers -----
 const copyToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text)
@@ -141,6 +184,7 @@ const copyToClipboard = async (text: string) => {
 
 const getQRCodeLink = (qr: QRCodeItem) => getRedirectUrl(qr.slug)
 
+// ----- Data loading -----
 const loadData = async () => {
   isLoading.value = true
   try {
@@ -157,7 +201,7 @@ const loadData = async () => {
   }
 }
 
-// Computed stats
+// ----- Computed stats -----
 const totalQr = computed(() => qrCodes.value.length)
 const totalScans = computed(() => qrCodes.value.reduce((sum, qr) => sum + (qr.scan_count || 0), 0))
 const lastCreated = computed(() => {
@@ -183,7 +227,7 @@ watch(searchQuery, () => {
   currentPage.value = 1
 })
 
-// Actions
+// ----- Actions -----
 const confirmDelete = (qr: QRCodeItem) => {
   selectedQR.value = qr
   deleteModalVisible.value = true
@@ -191,7 +235,6 @@ const confirmDelete = (qr: QRCodeItem) => {
 
 const handleDelete = async () => {
   if (!selectedQR.value) return
-
   try {
     await deleteQRCode(selectedQR.value.id)
     toast.add({
@@ -218,7 +261,6 @@ const viewAnalytics = async (qr: QRCodeItem) => {
   selectedQR.value = qr
   analyticsLoading.value = true
   analyticsModalVisible.value = true
-
   try {
     selectedAnalytics.value = await getQRCodeAnalytics(qr.id)
   } catch (error) {
@@ -236,7 +278,6 @@ const viewAnalytics = async (qr: QRCodeItem) => {
 
 const refreshAnalytics = async () => {
   if (!selectedQR.value) return
-
   try {
     selectedAnalytics.value = await getQRCodeAnalytics(selectedQR.value.id)
     toast.add({
@@ -250,7 +291,6 @@ const refreshAnalytics = async () => {
   }
 }
 
-// Auto-refresh for analytics modal (every 5s)
 let analyticsRefreshInterval: NodeJS.Timeout | null = null
 watch(analyticsModalVisible, (isVisible) => {
   if (isVisible) {
@@ -287,7 +327,7 @@ const openDownloadModal = () => {
 }
 
 const toggleActionMenu = (event: Event, qr: QRCodeItem, isMobile = false) => {
-  const menuItems = [
+  const items = [
     {
       label: 'View',
       icon: 'pi pi-eye',
@@ -304,7 +344,7 @@ const toggleActionMenu = (event: Event, qr: QRCodeItem, isMobile = false) => {
       command: () => confirmDelete(qr),
     },
   ]
-  actionMenuItems.value = menuItems
+  actionMenuItems.value = items
   if (isMobile) {
     mobileActionMenu.value?.toggle(event)
   } else {
@@ -315,12 +355,11 @@ const toggleActionMenu = (event: Event, qr: QRCodeItem, isMobile = false) => {
 const changePage = (page: number) => {
   currentPage.value = page
 }
-
 const clearSearch = () => {
   searchQuery.value = ''
 }
 
-// Download QR
+// ----- Download QR -----
 async function downloadQR(format: 'png' | 'jpg' | 'svg') {
   if (!viewSelectedQR.value || !viewSelectedQR.value.qrSrc) {
     toast.add({
@@ -339,7 +378,6 @@ async function downloadQR(format: 'png' | 'jpg' | 'svg') {
     if (format === 'png' || format === 'jpg') {
       const link = document.createElement('a')
       link.download = filename
-
       if (format === 'png') {
         link.href = viewSelectedQR.value.qrSrc
       } else {
@@ -405,7 +443,7 @@ async function downloadQR(format: 'png' | 'jpg' | 'svg') {
   }
 }
 
-// Chart data for analytics
+// ----- Chart data -----
 const getChartData = computed(() => {
   if (!selectedAnalytics.value?.scans_by_day) return []
   const days = selectedAnalytics.value.scans_by_day
@@ -450,11 +488,10 @@ const chartData = computed(() => {
   }
 })
 
-// Lifecycle – load data once
+// Lifecycle
 onMounted(() => {
   loadData()
 })
-
 onBeforeUnmount(() => {
   if (analyticsRefreshInterval) {
     clearInterval(analyticsRefreshInterval)
@@ -484,8 +521,6 @@ onBeforeUnmount(() => {
             </template>
           </div>
         </div>
-
-        <!-- Filter -->
         <div class="mt-4">
           <DashboardFilter v-model="searchQuery" :loading="isLoading" @clear="clearSearch" />
         </div>
@@ -521,7 +556,7 @@ onBeforeUnmount(() => {
       <Menu ref="actionMenu" :model="actionMenuItems" popup id="action_menu" />
       <Menu ref="mobileActionMenu" :model="actionMenuItems" popup id="mobile_action_menu" />
 
-      <!-- Delete Confirmation Modal -->
+      <!-- Delete Modal -->
       <div
         v-if="deleteModalVisible"
         class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -565,11 +600,7 @@ onBeforeUnmount(() => {
       >
         <div class="bg-white rounded-xl w-full max-w-md shadow-2xl animate-fade-in mx-4">
           <div class="relative bg-gray-50 p-4 sm:p-6 flex justify-center border-b border-gray-100">
-            <img
-              :src="viewSelectedQR?.qrSrc"
-              alt="QR Code"
-              class="w-32 h-32 sm:w-40 sm:h-40 object-contain"
-            />
+            <img :src="viewQRSrc" alt="QR Code" class="w-32 h-32 sm:w-40 sm:h-40 object-contain" />
             <button
               @click="viewModalVisible = false"
               class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
@@ -581,30 +612,20 @@ onBeforeUnmount(() => {
             <div class="flex items-start justify-between mb-3">
               <div>
                 <div class="flex items-center gap-2 mb-1">
-                  <i
-                    :class="[
-                      qrTypesMap[viewSelectedQR?.type || 'url']?.icon,
-                      getIconColorClass(qrTypesMap[viewSelectedQR?.type || 'url']?.color),
-                    ]"
-                    class="text-sm"
-                  ></i>
+                  <i :class="viewQRTypeIconClass" class="text-sm"></i>
                   <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
-                    {{ qrTypesMap[viewSelectedQR?.type || 'url']?.label || viewSelectedQR?.type }}
+                    {{ viewQRTypeLabel }}
                   </span>
                 </div>
-                <h3 class="text-lg sm:text-xl font-bold text-gray-900">
-                  {{ viewSelectedQR?.name }}
-                </h3>
-                <p class="text-xs text-gray-500 mt-1">
-                  {{ formatDate(viewSelectedQR?.created_at || '') }}
-                </p>
+                <h3 class="text-lg sm:text-xl font-bold text-gray-900">{{ viewQRName }}</h3>
+                <p class="text-xs text-gray-500 mt-1">{{ formatDate(viewQRCreatedAt) }}</p>
               </div>
             </div>
             <div class="mt-4 pt-3 border-t border-gray-100">
               <div class="flex items-center justify-between text-sm">
                 <div class="flex items-center gap-2">
                   <i class="pi pi-chart-line text-gray-400"></i>
-                  <span class="text-gray-600">{{ viewSelectedQR?.scan_count || 0 }} scans</span>
+                  <span class="text-gray-600">{{ viewQRScanCount }} scans</span>
                 </div>
               </div>
             </div>
@@ -625,10 +646,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="p-4 border-t border-gray-100 flex flex-col sm:flex-row gap-2">
             <button
-              @click="
-                viewAnalytics(viewSelectedQR!)
-                viewModalVisible = false
-              "
+              @click="(viewAnalytics(viewSelectedQR!), (viewModalVisible = false))"
               class="flex-1 py-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
             >
               <i class="pi pi-chart-line"></i> View Analytics
@@ -662,14 +680,10 @@ onBeforeUnmount(() => {
           <div class="p-6">
             <div class="flex justify-center mb-4">
               <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200">
-                <img
-                  :src="viewSelectedQR?.qrSrc"
-                  :alt="viewSelectedQR?.name"
-                  class="w-32 h-32 object-contain"
-                />
+                <img :src="downloadQRSrc" :alt="downloadQRName" class="w-32 h-32 object-contain" />
               </div>
             </div>
-            <p class="text-center text-sm text-gray-600 mb-4">{{ viewSelectedQR?.name }}</p>
+            <p class="text-center text-sm text-gray-600 mb-4">{{ downloadQRName }}</p>
             <div class="mb-4">
               <label class="block text-sm font-semibold text-gray-700 mb-2">QR Code Size</label>
               <div class="grid grid-cols-3 gap-3">
@@ -682,11 +696,7 @@ onBeforeUnmount(() => {
                   :key="size.value"
                   @click="downloadQRSize = size.value"
                   class="flex flex-col items-center px-4 py-2 rounded-lg border-2 transition-all cursor-pointer"
-                  :class="
-                    downloadQRSize === size.value
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-blue-300'
-                  "
+                  :class="getSizeButtonClass(size.value)"
                 >
                   <span>{{ size.label }}</span>
                   <span class="text-xs text-gray-500 mt-0.5">{{ size.dimensions }}</span>
@@ -745,7 +755,7 @@ onBeforeUnmount(() => {
           >
             <div>
               <h3 class="text-base sm:text-lg font-semibold text-gray-900">
-                Analytics: {{ selectedQR?.name }}
+                Analytics: {{ selectedQRName }}
               </h3>
               <p class="text-xs sm:text-sm text-gray-500">
                 Scan statistics and insights (auto-refreshes every 5s)
@@ -823,16 +833,7 @@ onBeforeUnmount(() => {
                   class="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg text-sm hover:bg-gray-100 transition-colors gap-2"
                 >
                   <div class="flex items-center gap-3 flex-1">
-                    <i
-                      :class="
-                        scan.device_type === 'Mobile'
-                          ? 'pi pi-mobile'
-                          : scan.device_type === 'Tablet'
-                            ? 'pi pi-tablet'
-                            : 'pi pi-desktop'
-                      "
-                      class="text-gray-500"
-                    ></i>
+                    <i :class="getDeviceIconClass(scan)" class="text-gray-500"></i>
                     <div class="flex-1">
                       <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <p class="font-medium text-gray-700 text-sm">
@@ -854,7 +855,7 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
                   </div>
-                  <i class="pi pi-info-circle text-gray-400" title="IP: {{ scan.ip }}"></i>
+                  <i class="pi pi-info-circle text-gray-400" :title="'IP: ' + scan.ip"></i>
                 </div>
               </div>
             </div>
@@ -876,11 +877,13 @@ onBeforeUnmount(() => {
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
   }
 }
+
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out;
 }

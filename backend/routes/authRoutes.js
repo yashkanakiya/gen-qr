@@ -2,10 +2,15 @@ import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { dbOperations } from "../database/database.js";
-import { generateToken, verifyToken } from "../middleware/auth.js";
+import {
+  generateToken,
+  verifyToken,
+  authenticate,
+} from "../middleware/auth.js";
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-this-in-production";
+const JWT_SECRET =
+  process.env.JWT_SECRET || "your-secret-key-change-this-in-production";
 
 // Signup
 router.post("/signup", async (req, res) => {
@@ -22,7 +27,9 @@ router.post("/signup", async (req, res) => {
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters" });
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 6 characters" });
     }
 
     // Check if user already exists
@@ -91,6 +98,7 @@ router.post("/login", async (req, res) => {
         id: user.id,
         username: user.username,
         email: user.email,
+        avatar: user.avatar || null,
       },
     });
   } catch (error) {
@@ -99,22 +107,53 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.put("/profile", authenticate, async (req, res) => {
+  try {
+    const { username, avatar } = req.body;
+    const userId = req.userId;
+
+    // Validation
+    if (!username || username.trim().length < 3) {
+      return res
+        .status(400)
+        .json({ error: "Username must be at least 3 characters" });
+    }
+
+    // Update user in DB
+    const updatedUser = await dbOperations.updateUserProfile(userId, {
+      username: username.trim(),
+      avatar: avatar || null, // accept null to remove avatar
+    });
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Profile update error:", error);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+});
 // Get current user
 router.get("/me", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     console.log("Auth header:", authHeader);
-    
+
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
     const token = authHeader.split(" ")[1];
     console.log("Token:", token);
-    
+
     const decoded = jwt.verify(token, JWT_SECRET);
     console.log("Decoded:", decoded);
-    
+
     const user = await dbOperations.getUserById(decoded.userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });

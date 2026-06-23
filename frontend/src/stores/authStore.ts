@@ -20,24 +20,10 @@ export interface SignupData {
   confirmPassword: string
 }
 
-// Remove the local api creation - use the imported one
-// const api = axios.create({ ... })  // DELETE THIS LINE
-
-// Remove interceptors from here since they're already in the shared api
-// The interceptors are now handled in services/api.ts
-
 // Reactive state
 export const currentUser = ref<User | null>(null)
 export const isAuthenticated = ref<boolean>(false)
 export const isAuthLoading = ref<boolean>(true)
-
-// Error handling
-const handleApiError = (error: unknown): never => {
-  if (error instanceof Error) {
-    throw new Error(error.message || 'An error occurred')
-  }
-  throw error
-}
 
 // 🆕 Profile image (stored as data URL in localStorage)
 export const profileImage = ref<string | null>(localStorage.getItem('profile_image') || null)
@@ -61,6 +47,29 @@ export function updateUserUsername(newUsername: string) {
   }
 }
 
+export async function updateUserProfile(username: string, avatar: string | null): Promise<void> {
+  try {
+    const response = await api.put<{ user: User & { avatar?: string } }>('/auth/profile', {
+      username,
+      avatar,
+    })
+    const updatedUser = response.data.user
+    // Update reactive state
+    if (currentUser.value) {
+      currentUser.value.username = updatedUser.username
+      // Also update avatar in store and localStorage
+      if (updatedUser.avatar) {
+        setProfileImage(updatedUser.avatar)
+      } else {
+        setProfileImage(null)
+      }
+    }
+  } catch (error) {
+    // Re-throw for component to handle
+    throw error
+  }
+}
+
 // Load user from token
 export async function loadUser(): Promise<boolean> {
   const token = localStorage.getItem('auth_token')
@@ -72,10 +81,15 @@ export async function loadUser(): Promise<boolean> {
   }
 
   try {
-    const response = await api.get<{ user: User }>('/auth/me')
+    const response = await api.get<{ user: User & { avatar?: string } }>('/auth/me')
     currentUser.value = response.data.user
     isAuthenticated.value = true
     isAuthLoading.value = false
+    if (response.data.user.avatar) {
+      setProfileImage(response.data.user.avatar)
+    } else {
+      setProfileImage(null)
+    }
     return true
   } catch (error) {
     console.error('Failed to load user:', error)
@@ -93,12 +107,20 @@ export async function loadUser(): Promise<boolean> {
 // Login
 export async function login(data: LoginData): Promise<void> {
   try {
-    const response = await api.post<{ token: string; user: User }>('/auth/login', data)
+    const response = await api.post<{ token: string; user: User & { avatar?: string } }>(
+      '/auth/login',
+      data,
+    )
     const { token, user } = response.data
 
     localStorage.setItem('auth_token', token)
     currentUser.value = user
     isAuthenticated.value = true
+    if (user.avatar) {
+      setProfileImage(user.avatar)
+    } else {
+      setProfileImage(null)
+    }
   } catch (error) {
     // Re-throw the error so it can be handled in the component
     throw error
@@ -108,12 +130,20 @@ export async function login(data: LoginData): Promise<void> {
 // Signup
 export async function signup(data: SignupData): Promise<void> {
   try {
-    const response = await api.post<{ token: string; user: User }>('/auth/signup', data)
+    const response = await api.post<{ token: string; user: User & { avatar?: string } }>(
+      '/auth/signup',
+      data,
+    )
     const { token, user } = response.data
 
     localStorage.setItem('auth_token', token)
     currentUser.value = user
     isAuthenticated.value = true
+    if (user.avatar) {
+      setProfileImage(user.avatar)
+    } else {
+      setProfileImage(null)
+    }
   } catch (error) {
     // Re-throw the error so it can be handled in the component
     throw error
