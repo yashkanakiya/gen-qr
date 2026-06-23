@@ -6,6 +6,9 @@ import { useToast } from 'primevue/usetoast'
 import { saveQRCode } from '../stores/qrStore'
 import QRCode from 'qrcode'
 import { QR_TYPES, generateQRContent, validateQRValue } from '../utils/qrContentGenerator'
+import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
+import Button from 'primevue/button'
 
 interface FormData {
   name: string
@@ -135,14 +138,14 @@ const validateName = (): boolean => {
 
 const validateFormValue = (): boolean => {
   const value = getCurrentValue()
-  
+
   if (!value || value.trim() === '') {
     validationErrors.value.value = 'This field is required'
     return false
   }
-  
+
   let error = null
-  
+
   switch (form.type) {
     case 'url': error = validateQRValue('url', value); break
     case 'email': error = validateQRValue('email', value); break
@@ -163,33 +166,33 @@ const validateFormValue = (): boolean => {
       }
       break
   }
-  
+
   if (error) {
     validationErrors.value.value = error
     return false
   }
-  
+
   validationErrors.value.value = ''
   return true
 }
 
 const isFormValid = computed<boolean>(() => {
-  const hasValue = getCurrentValue().trim() !== '' || 
+  const hasValue = getCurrentValue().trim() !== '' ||
     (form.type === 'wifi' && form.wifiSSID.trim() !== '') ||
     (form.type === 'location' && Boolean(form.locationLat && form.locationLng))
-  
-  return validationErrors.value.name === '' && 
-         validationErrors.value.value === '' && 
-         form.name.trim() !== '' && 
-         hasValue
+
+  return validationErrors.value.name === '' &&
+    validationErrors.value.value === '' &&
+    form.name.trim() !== '' &&
+    hasValue
 })
 
 // Reset qrGenerated flag when any input changes
 watch([() => form.name, () => form.type, () => form.urlValue, () => form.textValue,
-        () => form.emailTo, () => form.emailSubject, () => form.emailBody,
-        () => form.phoneNumber, () => form.smsNumber, () => form.smsMessage,
-        () => form.wifiSSID, () => form.wifiEncryption, () => form.wifiPassword,
-        () => form.locationLat, () => form.locationLng], () => {
+() => form.emailTo, () => form.emailSubject, () => form.emailBody,
+() => form.phoneNumber, () => form.smsNumber, () => form.smsMessage,
+() => form.wifiSSID, () => form.wifiEncryption, () => form.wifiPassword,
+() => form.locationLat, () => form.locationLng], () => {
   qrGenerated.value = false
   previewContent.value = getFullQRContent()
   if (getCurrentValue()) validateFormValue()
@@ -200,7 +203,7 @@ async function generateQR(): Promise<void> {
     toast.add({ severity: 'error', summary: 'Validation Error', detail: 'Please fix the validation errors', life: 4000 })
     return
   }
-  
+
   isLoading.value = true
   try {
     const qrDataURL = await QRCode.toDataURL(getFullQRContent(), {
@@ -221,12 +224,12 @@ async function generateQR(): Promise<void> {
 
 async function saveToDashboard(): Promise<void> {
   if (!isFormValid.value) return
-  
-  isSavingToDashboard.value = true   // disable button
+
+  isSavingToDashboard.value = true   // disable Button
   try {
-    const saveData: any = { 
-      name: form.name.trim(), 
-      type: form.type, 
+    const saveData: any = {
+      name: form.name.trim(),
+      type: form.type,
       value: getFullQRContent()
     }
     if (form.type === 'wifi') {
@@ -236,12 +239,12 @@ async function saveToDashboard(): Promise<void> {
     await saveQRCode(saveData)
     saveModalVisible.value = false
     toast.add({ severity: 'success', summary: 'Saved!', detail: 'QR code saved to dashboard', life: 3000 })
-    // Keep button disabled during redirect delay
+    // Keep Button disabled during redirect delay
     setTimeout(() => {
       router.push('/dashboard')
     }, 1500)
   } catch (error) {
-    // Re‑enable button only on error
+    // Re‑enable Button only on error
     isSavingToDashboard.value = false
     toast.add({ severity: 'error', summary: 'Save Failed', detail: 'Failed to save QR code', life: 4000 })
   }
@@ -314,12 +317,14 @@ function setType(type: string): void {
     <div class="max-w-2xl mx-auto w-full px-4">
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
         <div class="text-center mb-6">
-          <div class="w-16 h-16 bg-linear-to-r from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+          <div
+            class="w-16 h-16 bg-linear-to-r from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
             </svg>
           </div>
-          <h1 class="text-2xl md:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <h1
+            class="text-2xl md:text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             Create New QR Code
           </h1>
           <p class="text-gray-600 mt-2">Generate and customize your QR code</p>
@@ -329,18 +334,14 @@ function setType(type: string): void {
         <div class="mb-6">
           <label class="block text-sm font-semibold text-gray-700 mb-3">QR Type</label>
           <div class="grid grid-cols-4 gap-2">
-            <button
-              v-for="type in QR_TYPES"
-              :key="type.value"
+            <Button v-for="type in QR_TYPES" :key="type.value" severity="secondary" variant="outlined"
               @click="setType(type.value)"
-              class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all cursor-pointer"
-              :class="activeTab === type.value
+              class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all cursor-pointer" :class="activeTab === type.value
                 ? 'bg-blue-50 text-blue-600 border-2 border-blue-500'
-                : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'"
-            >
+                : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'">
               <i :class="type.icon" class="text-lg"></i>
               <span class="text-xs">{{ type.label }}</span>
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -351,45 +352,31 @@ function setType(type: string): void {
             <label class="block text-sm font-semibold text-gray-700 mb-2">
               QR Name <span class="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              v-model="form.name"
-              placeholder="e.g., My Portfolio, Business Card, etc."
+            <InputText type="text" v-model="form.name" placeholder="e.g., My Portfolio, Business Card, etc."
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              :class="{ 'border-red-500': validationErrors.name }"
-              @input="validateName"
-              @blur="validateName"
-            />
+              :class="{ 'border-red-500': validationErrors.name }" @input="validateName" @blur="validateName" />
             <p v-if="validationErrors.name" class="text-red-500 text-xs mt-1">{{ validationErrors.name }}</p>
           </div>
 
           <!-- URL Type -->
           <div v-if="form.type === 'url'">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Destination URL <span class="text-red-500">*</span></label>
-            <input
-              type="url"
-              v-model="form.urlValue"
-              placeholder="https://example.com"
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Destination URL <span
+                class="text-red-500">*</span></label>
+            <InputText type="url" v-model="form.urlValue" placeholder="https://example.com"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              :class="{ 'border-red-500': validationErrors.value }"
-              @input="validateFormValue"
-              @blur="validateFormValue"
-            />
+              :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue"
+              @blur="validateFormValue" />
             <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">{{ validationErrors.value }}</p>
           </div>
 
           <!-- Text Type -->
           <div v-if="form.type === 'text'">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Text Content <span class="text-red-500">*</span></label>
-            <textarea
-              v-model="form.textValue"
-              placeholder="Enter your text content here..."
-              rows="5"
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Text Content <span
+                class="text-red-500">*</span></label>
+            <Textarea v-model="form.textValue" placeholder="Enter your text content here..." rows="5"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
-              :class="{ 'border-red-500': validationErrors.value }"
-              @input="validateFormValue"
-              @blur="validateFormValue"
-            ></textarea>
+              :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue"
+              @blur="validateFormValue" />
             <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">{{ validationErrors.value }}</p>
           </div>
 
@@ -397,24 +384,22 @@ function setType(type: string): void {
           <div v-if="form.type === 'email'">
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Email Address <span class="text-red-500">*</span></label>
-                <input
-                  type="email"
-                  v-model="form.emailTo"
-                  placeholder="recipient@example.com"
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Email Address <span
+                    class="text-red-500">*</span></label>
+                <InputText type="email" v-model="form.emailTo" placeholder="recipient@example.com"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  :class="{ 'border-red-500': validationErrors.value }"
-                  @input="validateFormValue"
-                  @blur="validateFormValue"
-                />
+                  :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue"
+                  @blur="validateFormValue" />
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Subject (Optional)</label>
-                <input type="text" v-model="form.emailSubject" placeholder="Email subject" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" />
+                <InputText type="text" v-model="form.emailSubject" placeholder="Email subject"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" />
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Body (Optional)</label>
-                <textarea v-model="form.emailBody" placeholder="Email body content..." rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"></textarea>
+                <textarea v-model="form.emailBody" placeholder="Email body content..." rows="3"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"></textarea>
               </div>
               <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
             </div>
@@ -422,16 +407,12 @@ function setType(type: string): void {
 
           <!-- Phone Type -->
           <div v-if="form.type === 'phone'">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span class="text-red-500">*</span></label>
-            <input
-              type="tel"
-              v-model="form.phoneNumber"
-              placeholder="+1234567890"
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span
+                class="text-red-500">*</span></label>
+            <InputText type="tel" v-model="form.phoneNumber" placeholder="+1234567890"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              :class="{ 'border-red-500': validationErrors.value }"
-              @input="validateFormValue"
-              @blur="validateFormValue"
-            />
+              :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue"
+              @blur="validateFormValue" />
             <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">{{ validationErrors.value }}</p>
           </div>
 
@@ -439,20 +420,17 @@ function setType(type: string): void {
           <div v-if="form.type === 'sms'">
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span class="text-red-500">*</span></label>
-                <input
-                  type="tel"
-                  v-model="form.smsNumber"
-                  placeholder="+1234567890"
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span
+                    class="text-red-500">*</span></label>
+                <InputText type="tel" v-model="form.smsNumber" placeholder="+1234567890"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  :class="{ 'border-red-500': validationErrors.value }"
-                  @input="validateFormValue"
-                  @blur="validateFormValue"
-                />
+                  :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue"
+                  @blur="validateFormValue" />
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Message (Optional)</label>
-                <textarea v-model="form.smsMessage" placeholder="Pre-filled SMS message..." rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"></textarea>
+                <textarea v-model="form.smsMessage" placeholder="Pre-filled SMS message..." rows="3"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"></textarea>
               </div>
               <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
             </div>
@@ -462,25 +440,26 @@ function setType(type: string): void {
           <div v-if="form.type === 'wifi'">
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Network SSID <span class="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  v-model="form.wifiSSID"
-                  placeholder="WiFi Network Name"
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Network SSID <span
+                    class="text-red-500">*</span></label>
+                <InputText type="text" v-model="form.wifiSSID" placeholder="WiFi Network Name"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  :class="{ 'border-red-500': validationErrors.value }"
-                  @input="validateFormValue"
-                />
+                  :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue" />
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Encryption Type</label>
-                <select v-model="form.wifiEncryption" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
-                  <option v-for="opt in wifiEncryptionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                <select v-model="form.wifiEncryption"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                  <option v-for="opt in wifiEncryptionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}
+                  </option>
                 </select>
               </div>
               <div v-if="form.wifiEncryption !== 'nopass'">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Password <span class="text-red-500">*</span></label>
-                <input type="password" v-model="form.wifiPassword" placeholder="WiFi Password" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue" />
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Password <span
+                    class="text-red-500">*</span></label>
+                <InputText type="password" v-model="form.wifiPassword" placeholder="WiFi Password"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue" />
               </div>
               <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
             </div>
@@ -490,12 +469,18 @@ function setType(type: string): void {
           <div v-if="form.type === 'location'">
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Latitude <span class="text-red-500">*</span></label>
-                <input type="number" step="any" v-model="form.locationLat" placeholder="-90 to 90" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue" />
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Latitude <span
+                    class="text-red-500">*</span></label>
+                <InputText type="number" step="any" v-model="form.locationLat" placeholder="-90 to 90"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue" />
               </div>
               <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Longitude <span class="text-red-500">*</span></label>
-                <input type="number" step="any" v-model="form.locationLng" placeholder="-180 to 180" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue" />
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Longitude <span
+                    class="text-red-500">*</span></label>
+                <InputText type="number" step="any" v-model="form.locationLng" placeholder="-180 to 180"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }" @input="validateFormValue" />
               </div>
               <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
               <p class="text-gray-400 text-xs">Example: 40.7128, -74.0060 (New York City)</p>
@@ -506,29 +491,22 @@ function setType(type: string): void {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">QR Code Size</label>
             <div class="grid grid-cols-3 gap-3">
-              <button
-                v-for="size in sizeOptions"
-                :key="size.value"
+              <Button v-for="size in sizeOptions" severity="secondary" variant="outlined" :key="size.value"
                 @click="selectedSize = size.value"
-                class="flex flex-col items-center px-4 py-2 rounded-lg border-2 transition-all cursor-pointer"
-                :class="selectedSize === size.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'"
-              >
+                class="flex flex-col items-center px-4 py-2 rounded-lg border-2 transition-all">
                 <span>{{ size.label }}</span>
                 <span class="text-xs text-gray-500 mt-0.5">{{ size.dimensions }}</span>
-              </button>
+              </Button>
             </div>
           </div>
 
           <!-- Generate Button -->
-          <button 
-            @click="generateQR" 
-            :disabled="!isFormValid || isLoading || qrGenerated" 
-            class="w-full py-3 text-base font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer" 
-            :class="!isFormValid || isLoading || qrGenerated ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'"
-          >
+          <Button @click="generateQR" :disabled="!isFormValid || isLoading || qrGenerated"
+            class="w-full py-3 text-base font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            :class="!isFormValid || isLoading || qrGenerated ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'">
             <i v-if="isLoading" class="pi pi-spin pi-spinner mr-2"></i>
             Generate QR Code
-          </button>
+          </Button>
         </div>
 
         <!-- Generated QR Section -->
@@ -553,24 +531,25 @@ function setType(type: string): void {
             <div class="mb-4">
               <label class="block text-sm font-semibold text-gray-700 mb-2">Download Options</label>
               <div class="grid grid-cols-3 gap-2">
-                <button @click="downloadQR('png')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">PNG</button>
-                <button @click="downloadQR('jpg')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">JPG</button>
-                <button @click="downloadQR('svg')" class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">SVG</button>
+                <Button severity="info" variant="outlined" @click="downloadQR('png')"
+                  class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">PNG</Button>
+                <Button severity="info" variant="outlined" @click="downloadQR('jpg')"
+                  class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">JPG</Button>
+                <Button severity="info" variant="outlined" @click="downloadQR('svg')"
+                  class="px-3 py-1.5 border-2 border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-all font-medium text-sm cursor-pointer">SVG</Button>
               </div>
             </div>
 
             <div class="flex flex-col gap-2">
-              <button 
-                @click="saveModalVisible = true" 
-                :disabled="!qrSrc || isSavingToDashboard"
+              <Button severity="success" @click="saveModalVisible = true" :disabled="!qrSrc || isSavingToDashboard"
                 class="w-full py-2.5 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-[1.02] shadow-md text-sm cursor-pointer"
-                :class="{ 'opacity-50 cursor-not-allowed': !qrSrc || isSavingToDashboard }"
-              >
+                :class="{ 'opacity-50 cursor-not-allowed': !qrSrc || isSavingToDashboard }">
                 Save to Dashboard
-              </button>
-              <button @click="resetForm" class="w-full py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all text-sm cursor-pointer">
+              </Button>
+              <Button severity="secondary" variant="outlined" @click="resetForm"
+                class="w-full py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all text-sm cursor-pointer">
                 Create Another
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -578,7 +557,8 @@ function setType(type: string): void {
     </div>
 
     <!-- Save Confirmation Modal -->
-    <div v-if="saveModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4" @click.self="saveModalVisible = false">
+    <div v-if="saveModalVisible" class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      @click.self="saveModalVisible = false">
       <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl">
         <div class="text-center p-6">
           <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -592,16 +572,14 @@ function setType(type: string): void {
           </div>
         </div>
         <div class="flex gap-3 p-4 border-t border-gray-100">
-          <button @click="saveModalVisible = false" class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium cursor-pointer">Cancel</button>
-          <button 
-            @click="saveToDashboard" 
-            :disabled="isSavingToDashboard"
+          <Button severity="secondary" variant="outlined" @click="saveModalVisible = false"
+            class="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium cursor-pointer">Cancel</Button>
+          <Button severity="success" @click="saveToDashboard" :disabled="isSavingToDashboard"
             class="flex-1 px-4 py-2 bg-linear-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-medium cursor-pointer"
-            :class="{ 'opacity-50 cursor-not-allowed': isSavingToDashboard }"
-          >
+            :class="{ 'opacity-50 cursor-not-allowed': isSavingToDashboard }">
             <i v-if="isSavingToDashboard" class="pi pi-spin pi-spinner mr-2"></i>
             {{ isSavingToDashboard ? 'Saving...' : 'Save' }}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

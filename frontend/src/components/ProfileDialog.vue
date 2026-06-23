@@ -156,7 +156,7 @@ function closeDialog() {
         <Button
           label="Cancel"
           severity="secondary"
-          text
+          variant="outlined"
           @click="closeDialog"
         />
         <Button
@@ -168,37 +168,3 @@ function closeDialog() {
     </div>
   </Dialog>
 </template>
-
-<style scoped>
-.field {
-  margin-bottom: 0;
-}
-
-/* Remove default PrimeVue focus ring if any and set blue border */
-.profile-input :deep(.p-inputtext) {
-  border-color: #d1d5db; /* default gray */
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.profile-input :deep(.p-inputtext:enabled:focus) {
-  border-color: #3b82f6; /* blue-500 */
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-.profile-input :deep(.p-inputtext:enabled:hover) {
-  border-color: #60a5fa; /* blue-400 */
-}
-
-/* Save button with gradient */
-.save-btn {
-  background: linear-gradient(to right, #2563eb, #4f46e5) !important; /* from-blue-600 to-indigo-600 */
-  border: none !important;
-  color: white !important;
-}
-.save-btn:hover {
-  background: linear-gradient(to right, #1d4ed8, #4338ca) !important; /* darker on hover */
-  transform: scale(1.02);
-  transition: all 0.2s;
-}
-.save-btn:focus {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
-}
-</style>

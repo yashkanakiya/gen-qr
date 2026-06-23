@@ -5,6 +5,9 @@ import { useRouter, useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { getQRCodeById, updateQRCode, loadQRCodes, type QRCodeItem } from '../stores/qrStore'
 import { QR_TYPES, generateQRContent, validateQRValue } from '../utils/qrContentGenerator'
+import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
+import Button from 'primevue/button'
 
 const router = useRouter()
 const route = useRoute()
@@ -476,7 +479,8 @@ onMounted(() => {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-3">QR Type</label>
             <div class="grid grid-cols-4 gap-2">
-              <button
+              <Button
+              severity="secondary" variant="outlined"
                 v-for="type in QR_TYPES"
                 :key="type.value"
                 @click="setType(type.value)"
@@ -487,7 +491,7 @@ onMounted(() => {
               >
                 <i :class="type.icon" class="text-lg"></i>
                 <span class="text-xs">{{ type.label }}</span>
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -496,7 +500,7 @@ onMounted(() => {
             <label class="block text-sm font-semibold text-gray-700 mb-2">
               QR Name <span class="text-red-500">*</span>
             </label>
-            <input
+            <InputText
               type="text"
               v-model="form.name"
               placeholder="e.g., My Portfolio, Business Card, etc."
@@ -511,7 +515,7 @@ onMounted(() => {
           <!-- URL Type -->
           <div v-if="form.type === 'url'">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Destination URL <span class="text-red-500">*</span></label>
-            <input
+            <InputText
               type="url"
               v-model="form.urlValue"
               placeholder="https://example.com"
@@ -526,7 +530,7 @@ onMounted(() => {
           <!-- Text Type -->
           <div v-if="form.type === 'text'">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Text Content <span class="text-red-500">*</span></label>
-            <textarea
+            <Textarea
               v-model="form.textValue"
               placeholder="Enter your text content here..."
               rows="5"
@@ -534,7 +538,7 @@ onMounted(() => {
               :class="{ 'border-red-500': validationErrors.value }"
               @input="validateFormValue"
               @blur="validateFormValue"
-            ></textarea>
+            />
             <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">{{ validationErrors.value }}</p>
           </div>
 
@@ -543,7 +547,7 @@ onMounted(() => {
             <div class="space-y-3">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Email Address <span class="text-red-500">*</span></label>
-                <input
+                <InputText
                   type="email"
                   v-model="form.emailTo"
                   placeholder="recipient@example.com"
@@ -555,7 +559,7 @@ onMounted(() => {
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Subject (Optional)</label>
-                <input 
+                <InputText 
                   type="text" 
                   v-model="form.emailSubject" 
                   placeholder="Email subject" 
@@ -564,12 +568,12 @@ onMounted(() => {
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Body (Optional)</label>
-                <textarea 
+                <Textarea 
                   v-model="form.emailBody" 
                   placeholder="Email body content..." 
                   rows="3" 
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
-                ></textarea>
+                />
               </div>
               <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
             </div>
@@ -578,7 +582,7 @@ onMounted(() => {
           <!-- Phone Type -->
           <div v-if="form.type === 'phone'">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span class="text-red-500">*</span></label>
-            <input
+            <InputText
               type="tel"
               v-model="form.phoneNumber"
               placeholder="+1234567890"
@@ -595,7 +599,7 @@ onMounted(() => {
             <div class="space-y-3">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span class="text-red-500">*</span></label>
-                <input
+                <InputText
                   type="tel"
                   v-model="form.smsNumber"
                   placeholder="+1234567890"
@@ -607,12 +611,12 @@ onMounted(() => {
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Message (Optional)</label>
-                <textarea 
+                <Textarea 
                   v-model="form.smsMessage" 
                   placeholder="Pre-filled SMS message..." 
                   rows="3" 
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
-                ></textarea>
+                />
               </div>
               <p v-if="validationErrors.value" class="text-red-500 text-xs">{{ validationErrors.value }}</p>
             </div>
@@ -623,7 +627,7 @@ onMounted(() => {
             <div class="space-y-3">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Network SSID <span class="text-red-500">*</span></label>
-                <input
+                <InputText
                   type="text"
                   v-model="form.wifiSSID"
                   placeholder="WiFi Network Name"
@@ -645,7 +649,7 @@ onMounted(() => {
               </div>
               <div v-if="form.wifiEncryption !== 'nopass'">
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Password <span class="text-red-500">*</span></label>
-                <input 
+                <InputText 
                   type="password" 
                   v-model="form.wifiPassword" 
                   placeholder="WiFi Password" 
@@ -663,7 +667,7 @@ onMounted(() => {
             <div class="space-y-3">
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Latitude <span class="text-red-500">*</span></label>
-                <input 
+                <InputText 
                   type="number" 
                   step="any" 
                   v-model="form.locationLat" 
@@ -675,7 +679,7 @@ onMounted(() => {
               </div>
               <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Longitude <span class="text-red-500">*</span></label>
-                <input 
+                <InputText 
                   type="number" 
                   step="any" 
                   v-model="form.locationLng" 
@@ -698,13 +702,14 @@ onMounted(() => {
 
           <!-- Action Buttons -->
           <div class="flex gap-3 pt-4">
-            <button
+            <Button
+              severity="secondary" variant="outlined"
               @click="cancel"
               class="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               @click="updateQR"
               :disabled="!isFormValid || !hasChanges || isSaving"
               class="flex-1 px-4 py-2.5 rounded-lg font-semibold transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
@@ -714,7 +719,7 @@ onMounted(() => {
             >
               <i v-if="isSaving" class="pi pi-spin pi-spinner mr-2"></i>
               {{ isSaving ? 'Updating...' : 'Update QR Code' }}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

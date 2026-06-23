@@ -33,7 +33,7 @@
         :rowsPerPageOptions="rowsPerPageOptions"
         stripedRows
         tableClass="w-full min-w-[500px]"
-        paginatorClass="p-4 border-t border-gray-100 custom-paginator"
+        paginatorClass="p-4 border-t border-gray-100"
       >
         <Column field="created_at" header="Created At" class="text-sm">
           <template #body="{ data }">
@@ -60,7 +60,7 @@
           <template #body="{ data }">
             <Button
               icon="pi pi-ellipsis-v"
-              class="p-button-rounded p-button-text p-button-sm action-dots-btn"
+              class="p-button-rounded p-button-text p-button-sm"
               @click="$emit('toggleAction', $event, data)"
               aria-haspopup="true"
               aria-controls="action_menu"
@@ -126,7 +126,7 @@
           </div>
           <Button
             icon="pi pi-ellipsis-v"
-            class="p-button-rounded p-button-text p-button-sm action-dots-btn"
+            class="p-button-rounded p-button-text p-button-sm"
             @click="$emit('toggleAction', $event, qr, true)"
             aria-haspopup="true"
             aria-controls="mobile_action_menu"
@@ -251,8 +251,3 @@ const paginatedQRCodes = computed(() => {
 // Helper
 const getQRCodeLink = (qr: QRCodeItem) => getRedirectUrl(qr.slug)
 </script>
-
-<style scoped>
-/* Keep existing table and paginator styles from previous version */
-/* Add subtle pulse animation for skeleton (already using animate-pulse) */
-</style>
