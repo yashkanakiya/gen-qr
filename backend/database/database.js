@@ -33,15 +33,15 @@ const generateSlug = () => {
 
 // Initialize database tables
 const initDatabase = async () => {
-  const alterUsersTable = `
-  DO $$ 
-  BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='avatar') THEN 
-      ALTER TABLE users ADD COLUMN avatar TEXT;
-    END IF;
-  END $$;
-`;
-  await pool.query(alterUsersTable);
+  //   const alterUsersTable = `
+  //   DO $$
+  //   BEGIN
+  //     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='avatar') THEN
+  //       ALTER TABLE users ADD COLUMN avatar TEXT;
+  //     END IF;
+  //   END $$;
+  // `;
+  //   await pool.query(alterUsersTable);
 
   const createUsersTable = `
     CREATE TABLE IF NOT EXISTS users (
@@ -49,6 +49,7 @@ const initDatabase = async () => {
       username TEXT NOT NULL UNIQUE,
       email TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
+      avatar TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;

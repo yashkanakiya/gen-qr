@@ -194,9 +194,13 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
         }
       }
 
-      // Encryption type
+      // 🔥 FIX: Encryption type – if no T: present, it's an open network (nopass)
       const encMatch = qr.value.match(/T:([^;]+)/)
-      form.wifiEncryption = encMatch && encMatch[1] ? encMatch[1] : 'WPA'
+      if (encMatch && encMatch[1]) {
+        form.wifiEncryption = encMatch[1]
+      } else {
+        form.wifiEncryption = 'nopass'
+      }
 
       // Extract password – same logic as SSID
       const passMatches = qr.value.match(/P:([^;]+)/g)
@@ -221,6 +225,11 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
 
       form.wifiSSID = ssid
       form.wifiPassword = password
+
+      // 🧹 Ensure password is empty for open networks
+      if (form.wifiEncryption === 'nopass') {
+        form.wifiPassword = ''
+      }
       break
     }
     case 'location': {
@@ -389,12 +398,17 @@ async function updateQR() {
     const updateData: any = {
       name: form.name.trim(),
       type: form.type,
-      value: getFullQRContent(),
+      value: getCurrentValue(),
     }
 
     if (form.type === 'wifi') {
       updateData.wifiEncryption = form.wifiEncryption
       updateData.wifiPassword = form.wifiPassword
+    } else if (form.type === 'email') {
+      if (form.emailSubject) updateData.emailSubject = form.emailSubject
+      if (form.emailBody) updateData.emailBody = form.emailBody
+    } else if (form.type === 'sms') {
+      if (form.smsMessage) updateData.smsMessage = form.smsMessage
     }
 
     await updateQRCode(qrId.value, updateData)

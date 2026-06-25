@@ -294,11 +294,17 @@ async function saveToDashboard(): Promise<void> {
     const saveData: any = {
       name: form.name.trim(),
       type: form.type,
-      value: getFullQRContent(),
+      value: getCurrentValue(),
     }
+    // Add type‑specific extra fields
     if (form.type === 'wifi') {
       saveData.wifiEncryption = form.wifiEncryption
       saveData.wifiPassword = form.wifiPassword
+    } else if (form.type === 'email') {
+      if (form.emailSubject) saveData.emailSubject = form.emailSubject
+      if (form.emailBody) saveData.emailBody = form.emailBody
+    } else if (form.type === 'sms') {
+      if (form.smsMessage) saveData.smsMessage = form.smsMessage
     }
     await saveQRCode(saveData)
     saveModalVisible.value = false

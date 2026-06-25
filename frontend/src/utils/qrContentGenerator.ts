@@ -54,9 +54,9 @@ export const generateQRContent = (
       const encryption = extraData.encryption || 'WPA'
       const password = extraData.password || ''
       if (encryption === 'nopass') {
-        return `WIFI:S:${trimmedValue};;`
+        return `WIFI:S:${value};;`
       }
-      return `WIFI:T:${encryption};S:${trimmedValue};P:${password};;`
+      return `WIFI:T:${encryption};S:${value};P:${password};;`
     }
     case 'location': {
       // Handle location format
