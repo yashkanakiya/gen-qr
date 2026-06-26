@@ -18,14 +18,6 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
 });
 
-// PostgreSQL connection pool for production
-// const pool = new Pool({
-//   connectionString: process.env.DATABASE_URL,
-//   ssl: {
-//     rejectUnauthorized: false,
-//   },
-// });
-
 // Helper to generate unique slug
 const generateSlug = () => {
   return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
@@ -33,16 +25,6 @@ const generateSlug = () => {
 
 // Initialize database tables
 const initDatabase = async () => {
-  //   const alterUsersTable = `
-  //   DO $$
-  //   BEGIN
-  //     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='avatar') THEN
-  //       ALTER TABLE users ADD COLUMN avatar TEXT;
-  //     END IF;
-  //   END $$;
-  // `;
-  //   await pool.query(alterUsersTable);
-
   const createUsersTable = `
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -64,6 +46,7 @@ const initDatabase = async () => {
       qr_src TEXT NOT NULL,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       scan_count INTEGER DEFAULT 0,
+      metadata JSONB,  -- NEW: store extra fields for complex types
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -95,11 +78,23 @@ const initDatabase = async () => {
     ON qr_codes (user_id);
   `;
 
+  // Add metadata column if not exists (for existing databases)
+  const addMetadataColumn = `
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                     WHERE table_name='qr_codes' AND column_name='metadata') THEN
+        ALTER TABLE qr_codes ADD COLUMN metadata JSONB;
+      END IF;
+    END $$;
+  `;
+
   try {
     await pool.query(createUsersTable);
     await pool.query(createQRCodesTable);
     await pool.query(createScanAnalyticsTable);
     await pool.query(createIndexes);
+    await pool.query(addMetadataColumn);
     console.log("✅ PostgreSQL database initialized");
   } catch (error) {
     console.error("Database initialization error:", error);
@@ -157,14 +152,13 @@ const dbOperations = {
       values,
     );
 
-    // Return updated user
     return await dbOperations.getUserById(userId);
   },
 
   // ----- QR Codes -----
   getAll: async (userId) => {
     const result = await pool.query(
-      `SELECT id, slug, name, type, value, qr_src, scan_count, created_at, updated_at 
+      `SELECT id, slug, name, type, value, qr_src, scan_count, metadata, created_at, updated_at 
        FROM qr_codes WHERE user_id = $1 ORDER BY created_at DESC`,
       [userId],
     );
@@ -173,7 +167,7 @@ const dbOperations = {
 
   getById: async (id, userId) => {
     const result = await pool.query(
-      `SELECT id, slug, name, type, value, qr_src, scan_count, created_at, updated_at 
+      `SELECT id, slug, name, type, value, qr_src, scan_count, metadata, created_at, updated_at 
        FROM qr_codes WHERE id = $1 AND user_id = $2`,
       [id, userId],
     );
@@ -189,15 +183,21 @@ const dbOperations = {
     return result.rows[0];
   },
 
-  // 🔧 CHANGED: accept custom slug
   create: async (qrData, userId) => {
-    const { name, type, value, qrSrc, slug: customSlug } = qrData;
+    const {
+      name,
+      type,
+      value,
+      qrSrc,
+      slug: customSlug,
+      metadata = {},
+    } = qrData;
     const slug = customSlug || generateSlug();
     const result = await pool.query(
-      `INSERT INTO qr_codes (slug, name, type, value, qr_src, user_id) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       RETURNING id, slug, name, type, value, qr_src, scan_count, created_at, updated_at`,
-      [slug, name, type || "url", value, qrSrc, userId],
+      `INSERT INTO qr_codes (slug, name, type, value, qr_src, user_id, metadata) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+       RETURNING id, slug, name, type, value, qr_src, scan_count, metadata, created_at, updated_at`,
+      [slug, name, type || "url", value, qrSrc, userId, metadata],
     );
     return result.rows[0];
   },
@@ -207,21 +207,25 @@ const dbOperations = {
     const values = [];
     let paramIndex = 1;
 
-    if (updates.name) {
+    if (updates.name !== undefined) {
       fields.push(`name = $${paramIndex++}`);
       values.push(updates.name);
     }
-    if (updates.value) {
+    if (updates.value !== undefined) {
       fields.push(`value = $${paramIndex++}`);
       values.push(updates.value);
     }
-    if (updates.type) {
+    if (updates.type !== undefined) {
       fields.push(`type = $${paramIndex++}`);
       values.push(updates.type);
     }
-    if (updates.qrSrc) {
+    if (updates.qrSrc !== undefined) {
       fields.push(`qr_src = $${paramIndex++}`);
       values.push(updates.qrSrc);
+    }
+    if (updates.metadata !== undefined) {
+      fields.push(`metadata = $${paramIndex++}`);
+      values.push(updates.metadata);
     }
 
     if (fields.length === 0) return null;
@@ -324,5 +328,4 @@ const dbOperations = {
   },
 };
 
-// 🔧 EXPORT generateSlug so it can be used elsewhere
 export { pool as db, initDatabase, dbOperations, generateSlug };

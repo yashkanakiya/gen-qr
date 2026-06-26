@@ -7,10 +7,8 @@ import { generateQRContent } from "../utils/qrContentGenerator.js";
 
 const router = express.Router();
 
-// Apply authentication to protected routes
 router.use(authenticate);
 
-// Get all QR codes for the authenticated user
 router.get("/", async (req, res) => {
   try {
     const qrCodes = await dbOperations.getAll(req.userId);
@@ -21,7 +19,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Get QR code with analytics
 router.get("/:id", async (req, res) => {
   try {
     const qrCode = await dbOperations.getById(req.params.id, req.userId);
@@ -35,7 +32,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Get analytics for a QR code
 router.get("/:id/analytics", async (req, res) => {
   try {
     const analytics = await dbOperations.getAnalyticsByQRId(
@@ -63,23 +59,145 @@ router.post("/", async (req, res) => {
       emailSubject,
       emailBody,
       smsMessage,
+      // New fields for PDF, Event, VCard
+      pdfUrl,
+      pdfFileName,
+      eventTitle,
+      eventStartDate,
+      eventStartTime,
+      eventEndDate,
+      eventEndTime,
+      eventLocation,
+      eventDescription,
+      eventUrl,
+      vcardFirstName,
+      vcardLastName,
+      vcardPhone,
+      vcardEmail,
+      vcardCompany,
+      vcardJobTitle,
+      vcardAddress,
+      vcardWebsite,
     } = req.body;
 
-    if (!name || !value) {
-      return res.status(400).json({ error: "Name and value are required" });
+    if (!name) {
+      return res.status(400).json({ error: "Name is required" });
     }
 
-    // Build extra data for the specific type
+    let finalValue = value || "";
+    let metadata = {};
+
+    const finalType = type || "url";
+
     let extraData = {};
-    if (type === "wifi") {
-      extraData = { encryption: wifiEncryption, password: wifiPassword };
-    } else if (type === "email") {
-      extraData = { subject: emailSubject, body: emailBody };
-    } else if (type === "sms") {
-      extraData = { message: smsMessage };
+    switch (finalType) {
+      case "url":
+      case "text":
+        if (!value) return res.status(400).json({ error: "Value is required" });
+        finalValue = value;
+        break;
+
+      case "email":
+        if (!value) return res.status(400).json({ error: "Email is required" });
+        extraData = { subject: emailSubject, body: emailBody };
+        metadata = { emailSubject, emailBody };
+        break;
+
+      case "phone":
+        if (!value) return res.status(400).json({ error: "Phone is required" });
+        break;
+
+      case "sms":
+        if (!value) return res.status(400).json({ error: "Phone is required" });
+        extraData = { message: smsMessage };
+        metadata = { smsMessage };
+        break;
+
+      case "wifi":
+        if (!value) return res.status(400).json({ error: "SSID is required" });
+        extraData = { encryption: wifiEncryption, password: wifiPassword };
+        metadata = { wifiEncryption, wifiPassword };
+        break;
+
+      case "location":
+        if (!value)
+          return res.status(400).json({ error: "Location is required" });
+        break;
+
+      case "pdf":
+        if (!pdfUrl)
+          return res.status(400).json({ error: "PDF URL is required" });
+        finalValue = pdfUrl;
+        metadata = { pdfUrl, pdfFileName: pdfFileName || "" };
+        break;
+
+      case "event":
+        if (
+          !eventTitle ||
+          !eventStartDate ||
+          !eventStartTime ||
+          !eventEndDate ||
+          !eventEndTime
+        ) {
+          return res
+            .status(400)
+            .json({ error: "Event title, start & end date/time are required" });
+        }
+        extraData = {
+          title: eventTitle,
+          startDate: eventStartDate,
+          startTime: eventStartTime,
+          endDate: eventEndDate,
+          endTime: eventEndTime,
+          location: eventLocation,
+          description: eventDescription,
+          url: eventUrl,
+        };
+        metadata = {
+          eventTitle,
+          eventStartDate,
+          eventStartTime,
+          eventEndDate,
+          eventEndTime,
+          eventLocation,
+          eventDescription,
+          eventUrl,
+        };
+        finalValue = "event";
+        break;
+
+      case "vcard":
+        if (!vcardFirstName) {
+          return res.status(400).json({ error: "First name is required" });
+        }
+        extraData = {
+          firstName: vcardFirstName,
+          lastName: vcardLastName || "",
+          phone: vcardPhone,
+          email: vcardEmail,
+          company: vcardCompany,
+          jobTitle: vcardJobTitle,
+          address: vcardAddress,
+          website: vcardWebsite,
+        };
+        metadata = {
+          vcardFirstName,
+          vcardLastName,
+          vcardPhone,
+          vcardEmail,
+          vcardCompany,
+          vcardJobTitle,
+          vcardAddress,
+          vcardWebsite,
+        };
+        finalValue = "vcard";
+        break;
+
+      default:
+        return res.status(400).json({ error: "Unsupported QR type" });
     }
 
-    const content = generateQRContent(type || "url", value, extraData);
+    const content = generateQRContent(finalType, finalValue, extraData);
 
     const slug = generateSlug();
     const baseUrl =
@@ -95,10 +213,11 @@ router.post("/", async (req, res) => {
     const newQRCode = await dbOperations.create(
       {
         name,
-        type: type || "url",
+        type: finalType,
         value: content,
         qrSrc,
         slug,
+        metadata,
       },
       req.userId,
     );
@@ -121,25 +240,160 @@ router.put("/:id", async (req, res) => {
       emailSubject,
       emailBody,
       smsMessage,
+      pdfUrl,
+      pdfFileName,
+      eventTitle,
+      eventStartDate,
+      eventStartTime,
+      eventEndDate,
+      eventEndTime,
+      eventLocation,
+      eventDescription,
+      eventUrl,
+      vcardFirstName,
+      vcardLastName,
+      vcardPhone,
+      vcardEmail,
+      vcardCompany,
+      vcardJobTitle,
+      vcardAddress,
+      vcardWebsite,
     } = req.body;
-    const updates = {};
 
+    const updates = {};
     if (name) updates.name = name;
     if (type) updates.type = type;
 
-    if (value !== undefined) {
+    // If value or type is being updated, recompute content and metadata
+    if (value !== undefined || type) {
+      const finalType =
+        type ||
+        (await dbOperations.getById(req.params.id, req.userId))?.type ||
+        "url";
+      let finalValue = value || "";
       let extraData = {};
-      const finalType = type || "url";
-      if (finalType === "wifi") {
-        extraData = { encryption: wifiEncryption, password: wifiPassword };
-      } else if (finalType === "email") {
-        extraData = { subject: emailSubject, body: emailBody };
-      } else if (finalType === "sms") {
-        extraData = { message: smsMessage };
+      let metadata = {};
+
+      switch (finalType) {
+        case "url":
+        case "text":
+          if (!value)
+            return res.status(400).json({ error: "Value is required" });
+          finalValue = value;
+          break;
+
+        case "email":
+          if (!value)
+            return res.status(400).json({ error: "Email is required" });
+          extraData = { subject: emailSubject, body: emailBody };
+          metadata = { emailSubject, emailBody };
+          break;
+
+        case "phone":
+          if (!value)
+            return res.status(400).json({ error: "Phone is required" });
+          break;
+
+        case "sms":
+          if (!value)
+            return res.status(400).json({ error: "Phone is required" });
+          extraData = { message: smsMessage };
+          metadata = { smsMessage };
+          break;
+
+        case "wifi":
+          if (!value)
+            return res.status(400).json({ error: "SSID is required" });
+          extraData = { encryption: wifiEncryption, password: wifiPassword };
+          metadata = { wifiEncryption, wifiPassword };
+          break;
+
+        case "location":
+          if (!value)
+            return res.status(400).json({ error: "Location is required" });
+          break;
+
+        case "pdf":
+          if (!pdfUrl)
+            return res.status(400).json({ error: "PDF URL is required" });
+          finalValue = pdfUrl;
+          metadata = { pdfUrl, pdfFileName: pdfFileName || "" };
+          break;
+
+        case "event":
+          if (
+            !eventTitle ||
+            !eventStartDate ||
+            !eventStartTime ||
+            !eventEndDate ||
+            !eventEndTime
+          ) {
+            return res
+              .status(400)
+              .json({
+                error: "Event title, start & end date/time are required",
+              });
+          }
+          extraData = {
+            title: eventTitle,
+            startDate: eventStartDate,
+            startTime: eventStartTime,
+            endDate: eventEndDate,
+            endTime: eventEndTime,
+            location: eventLocation,
+            description: eventDescription,
+            url: eventUrl,
+          };
+          metadata = {
+            eventTitle,
+            eventStartDate,
+            eventStartTime,
+            eventEndDate,
+            eventEndTime,
+            eventLocation,
+            eventDescription,
+            eventUrl,
+          };
+          finalValue = "event";
+          break;
+
+        case "vcard":
+          if (!vcardFirstName) {
+            return res.status(400).json({ error: "First name is required" });
+          }
+          extraData = {
+            firstName: vcardFirstName,
+            lastName: vcardLastName || "",
+            phone: vcardPhone,
+            email: vcardEmail,
+            company: vcardCompany,
+            jobTitle: vcardJobTitle,
+            address: vcardAddress,
+            website: vcardWebsite,
+          };
+          metadata = {
+            vcardFirstName,
+            vcardLastName,
+            vcardPhone,
+            vcardEmail,
+            vcardCompany,
+            vcardJobTitle,
+            vcardAddress,
+            vcardWebsite,
+          };
+          finalValue = "vcard";
+          break;
+
+        default:
+          return res.status(400).json({ error: "Unsupported QR type" });
       }
-      updates.value = generateQRContent(finalType, value, extraData);
-      // Do NOT update qrSrc – the tracking URL remains the same
+
+      updates.value = generateQRContent(finalType, finalValue, extraData);
+      updates.type = finalType;
+      updates.metadata = metadata;
     }
+
+    // Do NOT update qrSrc – the tracking URL remains the same
 
     const updatedQRCode = await dbOperations.update(
       req.params.id,
@@ -155,7 +409,6 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// Delete QR code
 router.delete("/:id", async (req, res) => {
   try {
     await dbOperations.delete(req.params.id, req.userId);

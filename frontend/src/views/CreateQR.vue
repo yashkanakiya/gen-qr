@@ -9,6 +9,7 @@ import { QR_TYPES, generateQRContent, validateQRValue } from '../utils/qrContent
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
+import { api } from '../services/api'
 
 interface FormData {
   name: string
@@ -26,6 +27,23 @@ interface FormData {
   wifiPassword: string
   locationLat: string
   locationLng: string
+  pdfUrl: string
+  eventTitle: string
+  eventStartDate: string
+  eventStartTime: string
+  eventEndDate: string
+  eventEndTime: string
+  eventLocation: string
+  eventDescription: string
+  eventUrl: string
+  vcardFirstName: string
+  vcardLastName: string
+  vcardPhone: string
+  vcardEmail: string
+  vcardCompany: string
+  vcardJobTitle: string
+  vcardAddress: string
+  vcardWebsite: string
 }
 
 interface ValidationErrors {
@@ -40,11 +58,17 @@ const isLoading = ref<boolean>(false)
 const isSavingToDashboard = ref<boolean>(false)
 const activeTab = ref<string>('url')
 const qrGenerated = ref<boolean>(false)
-
 const validationErrors = ref<ValidationErrors>({
   name: '',
   value: '',
 })
+const selectedSize = ref<number>(500)
+const qrSrc = ref<string>('')
+const previewContent = ref<string>('')
+const showPdfPreview = ref<boolean>(false)
+const pdfInput = ref<HTMLInputElement | null>(null)
+const pdfFileName = ref<string>('')
+const isUploadingPdf = ref<boolean>(false)
 
 const form: FormData = reactive({
   name: '',
@@ -62,11 +86,24 @@ const form: FormData = reactive({
   wifiPassword: '',
   locationLat: '',
   locationLng: '',
+  pdfUrl: '',
+  eventTitle: '',
+  eventStartDate: '',
+  eventStartTime: '',
+  eventEndDate: '',
+  eventEndTime: '',
+  eventLocation: '',
+  eventDescription: '',
+  eventUrl: '',
+  vcardFirstName: '',
+  vcardLastName: '',
+  vcardPhone: '',
+  vcardEmail: '',
+  vcardCompany: '',
+  vcardJobTitle: '',
+  vcardAddress: '',
+  vcardWebsite: '',
 })
-
-const selectedSize = ref<number>(500)
-const qrSrc = ref<string>('')
-const previewContent = ref<string>('')
 
 const wifiEncryptionOptions = [
   { label: 'WPA/WPA2', value: 'WPA' },
@@ -80,7 +117,6 @@ const sizeOptions = [
   { label: 'Large', value: 1000, dimensions: '1000×1000' },
 ]
 
-// Tab scroll refs
 const tabContainer = ref<HTMLElement | null>(null)
 const showLeftScroll = ref(false)
 const showRightScroll = ref(false)
@@ -101,24 +137,15 @@ const getCurrentValue = (): string => {
       return form.wifiSSID
     case 'location':
       return form.locationLat && form.locationLng ? `${form.locationLat},${form.locationLng}` : ''
+    case 'pdf':
+      return form.pdfUrl
+    case 'event':
+      return form.eventTitle
+    case 'vcard':
+      return form.vcardFirstName
     default:
       return ''
   }
-}
-
-const getEmailContent = (): string => {
-  let content = `mailto:${form.emailTo}`
-  const params = []
-  if (form.emailSubject) params.push(`subject=${encodeURIComponent(form.emailSubject)}`)
-  if (form.emailBody) params.push(`body=${encodeURIComponent(form.emailBody)}`)
-  if (params.length > 0) content += `?${params.join('&')}`
-  return content
-}
-
-const getSMSContent = (): string => {
-  let content = `smsto:${form.smsNumber}`
-  if (form.smsMessage) content += `:${encodeURIComponent(form.smsMessage)}`
-  return content
 }
 
 const getFullQRContent = (): string => {
@@ -127,26 +154,65 @@ const getFullQRContent = (): string => {
       return generateQRContent('url', form.urlValue)
     case 'text':
       return generateQRContent('text', form.textValue)
-    case 'email':
-      return getEmailContent()
+    case 'email': {
+      let content = `mailto:${form.emailTo}`
+      const params = []
+      if (form.emailSubject) params.push(`subject=${encodeURIComponent(form.emailSubject)}`)
+      if (form.emailBody) params.push(`body=${encodeURIComponent(form.emailBody)}`)
+      if (params.length) content += `?${params.join('&')}`
+      return content
+    }
     case 'phone':
       return generateQRContent('phone', form.phoneNumber)
-    case 'sms':
-      return getSMSContent()
-    case 'wifi':
+    case 'sms': {
+      let content = `smsto:${form.smsNumber}`
+      if (form.smsMessage) content += `:${encodeURIComponent(form.smsMessage)}`
+      return content
+    }
+    case 'wifi': {
       return generateQRContent('wifi', form.wifiSSID, {
         encryption: form.wifiEncryption,
         password: form.wifiPassword,
       })
-    case 'location':
+    }
+    case 'location': {
       return form.locationLat && form.locationLng
         ? generateQRContent('location', `${form.locationLat},${form.locationLng}`)
         : ''
+    }
+    case 'pdf': {
+      return generateQRContent('pdf', form.pdfUrl)
+    }
+    case 'event': {
+      return generateQRContent('event', 'event', {
+        title: form.eventTitle,
+        startDate: form.eventStartDate,
+        startTime: form.eventStartTime,
+        endDate: form.eventEndDate,
+        endTime: form.eventEndTime,
+        location: form.eventLocation,
+        description: form.eventDescription,
+        url: form.eventUrl,
+      })
+    }
+    case 'vcard': {
+      return generateQRContent('vcard', 'vcard', {
+        firstName: form.vcardFirstName,
+        lastName: form.vcardLastName,
+        phone: form.vcardPhone,
+        email: form.vcardEmail,
+        company: form.vcardCompany,
+        jobTitle: form.vcardJobTitle,
+        address: form.vcardAddress,
+        website: form.vcardWebsite,
+      })
+    }
     default:
       return ''
   }
 }
 
+// --- Validation ---
 const validateName = (): boolean => {
   const name = form.name
   if (!name || name.trim() === '') {
@@ -162,60 +228,78 @@ const validateName = (): boolean => {
 }
 
 const validateFormValue = (): boolean => {
-  const value = getCurrentValue()
-
-  if (!value || value.trim() === '') {
-    validationErrors.value.value = 'This field is required'
-    return false
-  }
-
-  let error = null
-
+  let error: string | null = null
   switch (form.type) {
-    case 'url':
-      error = validateQRValue('url', value)
+    case 'event': {
+      if (!form.eventTitle.trim()) error = 'Event title is required'
+      else if (!form.eventStartDate || !form.eventStartTime)
+        error = 'Start date and time are required'
+      else if (!form.eventEndDate || !form.eventEndTime) error = 'End date and time are required'
       break
-    case 'email':
-      error = validateQRValue('email', value)
+    }
+    case 'vcard': {
+      if (!form.vcardFirstName.trim()) error = 'First name is required'
       break
-    case 'phone':
-      error = validateQRValue('phone', value)
+    }
+    case 'pdf': {
+      if (!form.pdfUrl.trim()) error = 'PDF file is required'
       break
-    case 'sms':
-      error = validateQRValue('sms', value)
-      break
-    case 'wifi':
-      if (!form.wifiSSID.trim()) error = 'WiFi SSID is required'
-      else if (form.wifiEncryption !== 'nopass' && !form.wifiPassword)
-        error = 'WiFi password is required'
-      break
-    case 'location':
-      if (!form.locationLat || !form.locationLng) error = 'Both latitude and longitude are required'
-      else {
-        const lat = parseFloat(form.locationLat)
-        const lng = parseFloat(form.locationLng)
-        if (isNaN(lat) || isNaN(lng)) error = 'Please enter valid numbers'
-        else if (lat < -90 || lat > 90) error = 'Latitude must be between -90 and 90'
-        else if (lng < -180 || lng > 180) error = 'Longitude must be between -180 and 180'
-      }
-      break
+    }
+    default: {
+      const value = getCurrentValue()
+      if (!value || value.trim() === '') error = 'This field is required'
+      else error = validateQRValue(form.type, value)
+    }
   }
-
   if (error) {
     validationErrors.value.value = error
     return false
   }
-
   validationErrors.value.value = ''
   return true
 }
 
 const isFormValid = computed<boolean>(() => {
-  const hasValue =
-    getCurrentValue().trim() !== '' ||
-    (form.type === 'wifi' && form.wifiSSID.trim() !== '') ||
-    (form.type === 'location' && Boolean(form.locationLat && form.locationLng))
-
+  let hasValue = false
+  switch (form.type) {
+    case 'url':
+      hasValue = form.urlValue.trim() !== ''
+      break
+    case 'text':
+      hasValue = form.textValue.trim() !== ''
+      break
+    case 'email':
+      hasValue = form.emailTo.trim() !== ''
+      break
+    case 'phone':
+      hasValue = form.phoneNumber.trim() !== ''
+      break
+    case 'sms':
+      hasValue = form.smsNumber.trim() !== ''
+      break
+    case 'wifi':
+      hasValue = form.wifiSSID.trim() !== ''
+      break
+    case 'location':
+      hasValue = !!form.locationLat && !!form.locationLng
+      break
+    case 'pdf':
+      hasValue = form.pdfUrl.trim() !== ''
+      break
+    case 'event':
+      hasValue =
+        form.eventTitle.trim() !== '' &&
+        !!form.eventStartDate &&
+        !!form.eventStartTime &&
+        !!form.eventEndDate &&
+        !!form.eventEndTime
+      break
+    case 'vcard':
+      hasValue = form.vcardFirstName.trim() !== ''
+      break
+    default:
+      hasValue = false
+  }
   return (
     validationErrors.value.name === '' &&
     validationErrors.value.value === '' &&
@@ -224,7 +308,6 @@ const isFormValid = computed<boolean>(() => {
   )
 })
 
-// Watch for input changes to reset QR and update preview
 watch(
   [
     () => form.name,
@@ -242,16 +325,34 @@ watch(
     () => form.wifiPassword,
     () => form.locationLat,
     () => form.locationLng,
+    () => form.pdfUrl,
+    () => form.eventTitle,
+    () => form.eventStartDate,
+    () => form.eventStartTime,
+    () => form.eventEndDate,
+    () => form.eventEndTime,
+    () => form.eventLocation,
+    () => form.eventDescription,
+    () => form.eventUrl,
+    () => form.vcardFirstName,
+    () => form.vcardLastName,
+    () => form.vcardPhone,
+    () => form.vcardEmail,
+    () => form.vcardCompany,
+    () => form.vcardJobTitle,
+    () => form.vcardAddress,
+    () => form.vcardWebsite,
   ],
   () => {
     qrGenerated.value = false
     previewContent.value = getFullQRContent()
-    if (getCurrentValue()) validateFormValue()
+    if (getCurrentValue() || form.type === 'event' || form.type === 'vcard' || form.type === 'pdf')
+      validateFormValue()
   },
   { deep: true },
 )
 
-// Tab scroll logic
+// --- Tab scroll ---
 const updateScrollButtons = () => {
   const el = tabContainer.value
   if (!el) {
@@ -276,9 +377,7 @@ watch([() => activeTab.value, () => form.type], () => {
   nextTick(updateScrollButtons)
 })
 
-const handleResize = () => {
-  updateScrollButtons()
-}
+const handleResize = () => updateScrollButtons()
 
 onMounted(() => {
   nextTick(updateScrollButtons)
@@ -289,6 +388,61 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
 })
 
+// --- PDF Upload ---
+const handlePdfUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (!input.files || input.files.length === 0) return
+  const file = input.files[0]
+  if (file.type !== 'application/pdf') {
+    toast.add({
+      severity: 'error',
+      summary: 'Invalid File',
+      detail: 'Please upload a PDF file',
+      life: 3000,
+    })
+    input.value = ''
+    return
+  }
+
+  isUploadingPdf.value = true
+  const formData = new FormData()
+  formData.append('pdf', file)
+
+  try {
+    const response = await api.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    form.pdfUrl = response.data.url
+    pdfFileName.value = response.data.fileName
+    validateFormValue()
+    toast.add({
+      severity: 'success',
+      summary: 'Uploaded',
+      detail: 'PDF uploaded successfully',
+      life: 2000,
+    })
+  } catch (error) {
+    console.error('Upload error:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Upload Failed',
+      detail: 'Could not upload PDF',
+      life: 3000,
+    })
+  } finally {
+    isUploadingPdf.value = false
+    input.value = ''
+  }
+}
+
+const removePdf = () => {
+  form.pdfUrl = ''
+  pdfFileName.value = ''
+  if (pdfInput.value) pdfInput.value.value = ''
+  validateFormValue()
+}
+
+// --- QR Generation ---
 async function generateQR(): Promise<void> {
   if (!validateName() || !validateFormValue()) {
     toast.add({
@@ -316,6 +470,9 @@ async function generateQR(): Promise<void> {
       detail: 'QR code generated successfully',
       life: 3000,
     })
+    if (form.type === 'pdf' && form.pdfUrl) {
+      showPdfPreview.value = true
+    }
   } catch (error) {
     toast.add({
       severity: 'error',
@@ -330,7 +487,6 @@ async function generateQR(): Promise<void> {
 
 async function saveToDashboard(): Promise<void> {
   if (!isFormValid.value) return
-
   isSavingToDashboard.value = true
   try {
     const saveData: any = {
@@ -346,6 +502,27 @@ async function saveToDashboard(): Promise<void> {
       if (form.emailBody) saveData.emailBody = form.emailBody
     } else if (form.type === 'sms') {
       if (form.smsMessage) saveData.smsMessage = form.smsMessage
+    } else if (form.type === 'pdf') {
+      saveData.pdfUrl = form.pdfUrl
+      saveData.pdfFileName = pdfFileName.value
+    } else if (form.type === 'event') {
+      saveData.eventTitle = form.eventTitle
+      saveData.eventStartDate = form.eventStartDate
+      saveData.eventStartTime = form.eventStartTime
+      saveData.eventEndDate = form.eventEndDate
+      saveData.eventEndTime = form.eventEndTime
+      if (form.eventLocation) saveData.eventLocation = form.eventLocation
+      if (form.eventDescription) saveData.eventDescription = form.eventDescription
+      if (form.eventUrl) saveData.eventUrl = form.eventUrl
+    } else if (form.type === 'vcard') {
+      saveData.vcardFirstName = form.vcardFirstName
+      saveData.vcardLastName = form.vcardLastName
+      if (form.vcardPhone) saveData.vcardPhone = form.vcardPhone
+      if (form.vcardEmail) saveData.vcardEmail = form.vcardEmail
+      if (form.vcardCompany) saveData.vcardCompany = form.vcardCompany
+      if (form.vcardJobTitle) saveData.vcardJobTitle = form.vcardJobTitle
+      if (form.vcardAddress) saveData.vcardAddress = form.vcardAddress
+      if (form.vcardWebsite) saveData.vcardWebsite = form.vcardWebsite
     }
     await saveQRCode(saveData)
     saveModalVisible.value = false
@@ -429,11 +606,31 @@ function resetForm(): void {
   form.wifiPassword = ''
   form.locationLat = ''
   form.locationLng = ''
+  form.pdfUrl = ''
+  pdfFileName.value = ''
+  form.eventTitle = ''
+  form.eventStartDate = ''
+  form.eventStartTime = ''
+  form.eventEndDate = ''
+  form.eventEndTime = ''
+  form.eventLocation = ''
+  form.eventDescription = ''
+  form.eventUrl = ''
+  form.vcardFirstName = ''
+  form.vcardLastName = ''
+  form.vcardPhone = ''
+  form.vcardEmail = ''
+  form.vcardCompany = ''
+  form.vcardJobTitle = ''
+  form.vcardAddress = ''
+  form.vcardWebsite = ''
   qrSrc.value = ''
   selectedSize.value = 500
   validationErrors.value = { name: '', value: '' }
   activeTab.value = 'url'
   qrGenerated.value = false
+  showPdfPreview.value = false
+  if (pdfInput.value) pdfInput.value.value = ''
 }
 
 function setType(type: string): void {
@@ -442,6 +639,7 @@ function setType(type: string): void {
   qrSrc.value = ''
   validationErrors.value.value = ''
   qrGenerated.value = false
+  showPdfPreview.value = false
 }
 </script>
 
@@ -470,20 +668,17 @@ function setType(type: string): void {
           <p class="text-gray-600 mt-2">Generate and customize your QR code</p>
         </div>
 
-        <!-- QR Type Tabs (scrollable) - no label -->
+        <!-- Tabs -->
         <div class="mb-6 relative">
           <div class="relative flex items-center">
-            <!-- Left scroll arrow -->
             <button
               v-if="showLeftScroll"
               @click="scrollTabs('left')"
-              class="absolute left-0 top z-10 flex items-center cursor-pointer justify-center w-7 h-7 bg-transparent rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors -translate-y-1/2 top-9"
+              class="absolute left-0 z-10 flex items-center justify-center w-7 h-7 bg-transparent rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors -translate-y-1/2 top-9"
               style="transform: translateY(-50%)"
             >
               <i class="pi pi-chevron-left text-xs text-gray-600"></i>
             </button>
-
-            <!-- Tabs wrapper -->
             <div
               ref="tabContainer"
               class="flex overflow-x-auto scroll-smooth no-scrollbar gap-2 px-2 py-1 mx-7"
@@ -505,12 +700,10 @@ function setType(type: string): void {
                 <span class="text-sm font-medium">{{ type.label }}</span>
               </div>
             </div>
-
-            <!-- Right scroll arrow -->
             <button
               v-if="showRightScroll"
               @click="scrollTabs('right')"
-              class="absolute right-0 z-10 flex cursor-pointer items-center justify-center w-7 h-7 bg-transparent rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors -translate-y-1/2 top-9"
+              class="absolute right-0 z-10 flex items-center justify-center w-7 h-7 bg-transparent rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors -translate-y-1/2 top-9"
               style="transform: translateY(-50%)"
             >
               <i class="pi pi-chevron-right text-xs text-gray-600"></i>
@@ -520,7 +713,7 @@ function setType(type: string): void {
 
         <!-- Form Fields -->
         <div class="space-y-4">
-          <!-- QR Name -->
+          <!-- Name -->
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">
               QR Name <span class="text-red-500">*</span>
@@ -539,7 +732,7 @@ function setType(type: string): void {
             </p>
           </div>
 
-          <!-- URL Type -->
+          <!-- URL -->
           <div v-if="form.type === 'url'">
             <label class="block text-sm font-semibold text-gray-700 mb-2"
               >Destination URL <span class="text-red-500">*</span></label
@@ -558,7 +751,7 @@ function setType(type: string): void {
             </p>
           </div>
 
-          <!-- Text Type -->
+          <!-- Text -->
           <div v-if="form.type === 'text'">
             <label class="block text-sm font-semibold text-gray-700 mb-2"
               >Text Content <span class="text-red-500">*</span></label
@@ -577,7 +770,7 @@ function setType(type: string): void {
             </p>
           </div>
 
-          <!-- Email Type -->
+          <!-- Email -->
           <div v-if="form.type === 'email'">
             <div class="space-y-3">
               <div>
@@ -609,12 +802,12 @@ function setType(type: string): void {
                 <label class="block text-sm font-semibold text-gray-700 mb-2"
                   >Body (Optional)</label
                 >
-                <textarea
+                <Textarea
                   v-model="form.emailBody"
                   placeholder="Email body content..."
                   rows="3"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
-                ></textarea>
+                />
               </div>
               <p v-if="validationErrors.value" class="text-red-500 text-xs">
                 {{ validationErrors.value }}
@@ -622,7 +815,7 @@ function setType(type: string): void {
             </div>
           </div>
 
-          <!-- Phone Type -->
+          <!-- Phone -->
           <div v-if="form.type === 'phone'">
             <label class="block text-sm font-semibold text-gray-700 mb-2"
               >Phone Number <span class="text-red-500">*</span></label
@@ -641,7 +834,7 @@ function setType(type: string): void {
             </p>
           </div>
 
-          <!-- SMS Type -->
+          <!-- SMS -->
           <div v-if="form.type === 'sms'">
             <div class="space-y-3">
               <div>
@@ -662,12 +855,12 @@ function setType(type: string): void {
                 <label class="block text-sm font-semibold text-gray-700 mb-2"
                   >Message (Optional)</label
                 >
-                <textarea
+                <Textarea
                   v-model="form.smsMessage"
                   placeholder="Pre-filled SMS message..."
                   rows="3"
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
-                ></textarea>
+                />
               </div>
               <p v-if="validationErrors.value" class="text-red-500 text-xs">
                 {{ validationErrors.value }}
@@ -675,7 +868,7 @@ function setType(type: string): void {
             </div>
           </div>
 
-          <!-- WiFi Type -->
+          <!-- WiFi -->
           <div v-if="form.type === 'wifi'">
             <div class="space-y-3">
               <div>
@@ -723,7 +916,7 @@ function setType(type: string): void {
             </div>
           </div>
 
-          <!-- Location Type -->
+          <!-- Location -->
           <div v-if="form.type === 'location'">
             <div class="space-y-3">
               <div>
@@ -761,6 +954,245 @@ function setType(type: string): void {
             </div>
           </div>
 
+          <!-- ===== PDF ===== -->
+          <div v-if="form.type === 'pdf'">
+            <label class="block text-sm font-semibold text-gray-700 mb-2"
+              >Upload PDF <span class="text-red-500">*</span></label
+            >
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              @change="handlePdfUpload"
+              ref="pdfInput"
+              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+              :disabled="isUploadingPdf"
+            />
+
+            <!-- PDF Preview with icon and close -->
+            <div v-if="form.pdfUrl" class="mt-3 flex justify-center">
+              <div
+                class="relative border rounded-lg p-4 bg-gray-50 flex flex-col items-center w-48"
+              >
+                <i class="pi pi-file-pdf text-5xl text-red-500"></i>
+                <p class="text-xs text-gray-600 mt-2 truncate w-full text-center">
+                  {{ pdfFileName || 'PDF Document' }}
+                </p>
+                <button
+                  @click="removePdf"
+                  class="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100 cursor-pointer"
+                  type="button"
+                >
+                  <i class="pi pi-times text-gray-600"></i>
+                </button>
+              </div>
+            </div>
+            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">
+              {{ validationErrors.value }}
+            </p>
+          </div>
+
+          <!-- Event -->
+          <div v-if="form.type === 'event'">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Event Title <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="text"
+                  v-model="form.eventTitle"
+                  placeholder="Conference, Meeting, etc."
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Event URL (Optional)</label
+                >
+                <InputText
+                  type="url"
+                  v-model="form.eventUrl"
+                  placeholder="https://event-page.com"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Start Date <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="date"
+                  v-model="form.eventStartDate"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Start Time <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="time"
+                  v-model="form.eventStartTime"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >End Date <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="date"
+                  v-model="form.eventEndDate"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >End Time <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="time"
+                  v-model="form.eventEndTime"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
+                />
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Location (Optional)</label
+                >
+                <InputText
+                  type="text"
+                  v-model="form.eventLocation"
+                  placeholder="Venue, address, etc."
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Description (Optional)</label
+                >
+                <Textarea
+                  v-model="form.eventDescription"
+                  placeholder="Event details..."
+                  rows="3"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
+                />
+              </div>
+            </div>
+            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">
+              {{ validationErrors.value }}
+            </p>
+          </div>
+
+          <!-- VCard -->
+          <div v-if="form.type === 'vcard'">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >First Name <span class="text-red-500">*</span></label
+                >
+                <InputText
+                  type="text"
+                  v-model="form.vcardFirstName"
+                  placeholder="John"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  :class="{ 'border-red-500': validationErrors.value }"
+                  @input="validateFormValue"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Last Name (Optional)</label
+                >
+                <InputText
+                  type="text"
+                  v-model="form.vcardLastName"
+                  placeholder="Doe"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Phone (Optional)</label
+                >
+                <InputText
+                  type="tel"
+                  v-model="form.vcardPhone"
+                  placeholder="+1234567890"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Email (Optional)</label
+                >
+                <InputText
+                  type="email"
+                  v-model="form.vcardEmail"
+                  placeholder="john@example.com"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Company (Optional)</label
+                >
+                <InputText
+                  type="text"
+                  v-model="form.vcardCompany"
+                  placeholder="Acme Inc."
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Job Title (Optional)</label
+                >
+                <InputText
+                  type="text"
+                  v-model="form.vcardJobTitle"
+                  placeholder="Software Engineer"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Address (Optional)</label
+                >
+                <Textarea
+                  v-model="form.vcardAddress"
+                  placeholder="Street, City, State, ZIP"
+                  rows="2"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y"
+                />
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-semibold text-gray-700 mb-2"
+                  >Website (Optional)</label
+                >
+                <InputText
+                  type="url"
+                  v-model="form.vcardWebsite"
+                  placeholder="https://mywebsite.com"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+            <p v-if="validationErrors.value" class="text-red-500 text-xs mt-1">
+              {{ validationErrors.value }}
+            </p>
+          </div>
+
           <!-- Size Selection -->
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">QR Code Size</label>
@@ -778,7 +1210,6 @@ function setType(type: string): void {
               >
                 <span class="font-medium">{{ size.label }}</span>
                 <span class="text-xs text-gray-500 mt-0.5">{{ size.dimensions }}</span>
-                <!-- Small checkmark in top-right corner -->
                 <div
                   v-if="selectedSize === size.value"
                   class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm border border-white"
@@ -792,10 +1223,10 @@ function setType(type: string): void {
           <!-- Generate Button -->
           <Button
             @click="generateQR"
-            :disabled="!isFormValid || isLoading || qrGenerated"
+            :disabled="!isFormValid || isLoading || qrGenerated || isUploadingPdf"
             class="w-full py-3 text-base font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             :class="
-              !isFormValid || isLoading || qrGenerated
+              !isFormValid || isLoading || qrGenerated || isUploadingPdf
                 ? 'bg-gray-300 cursor-not-allowed text-gray-500'
                 : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg'
             "
@@ -875,7 +1306,7 @@ function setType(type: string): void {
       </div>
     </div>
 
-    <!-- Save Confirmation Modal -->
+    <!-- Save Modal -->
     <div
       v-if="saveModalVisible"
       class="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4"

@@ -21,11 +21,11 @@ export const validateQRData = (req, res, next) => {
     return res.status(400).json({ error: "Name and URL are required" });
   }
 
-//   if (!isValidName(name)) {
-//     return res.status(400).json({
-//       error: "Name must be at least 3 characters and contain no spaces",
-//     });
-//   }
+  //   if (!isValidName(name)) {
+  //     return res.status(400).json({
+  //       error: "Name must be at least 3 characters and contain no spaces",
+  //     });
+  //   }
 
   if (!isValidUrl(url)) {
     return res.status(400).json({

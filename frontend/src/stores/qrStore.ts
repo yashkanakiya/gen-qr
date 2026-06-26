@@ -12,6 +12,7 @@ export interface QRCodeItem {
   scan_count: number
   created_at: string
   updated_at: string
+  metadata?: Record<string, any> // NEW
 }
 
 export interface ScanAnalytics {
@@ -40,6 +41,7 @@ interface QRCodeApiResponse {
   scan_count: number
   created_at: string
   updated_at: string
+  metadata?: Record<string, any>
 }
 
 export const qrCodes: Ref<QRCodeItem[]> = ref([])
@@ -67,6 +69,7 @@ export async function loadQRCodes(): Promise<QRCodeItem[]> {
       scan_count: item.scan_count || 0,
       created_at: item.created_at,
       updated_at: item.updated_at,
+      metadata: item.metadata || {},
     }))
     return qrCodes.value
   } catch (error) {
@@ -88,6 +91,7 @@ export async function getQRCodeById(id: string): Promise<QRCodeItem> {
       scan_count: item.scan_count || 0,
       created_at: item.created_at,
       updated_at: item.updated_at,
+      metadata: item.metadata || {},
     }
   } catch (error) {
     throw handleApiError(error)
@@ -97,7 +101,6 @@ export async function getQRCodeById(id: string): Promise<QRCodeItem> {
 export async function getQRCodeAnalytics(id: string): Promise<ScanAnalytics> {
   try {
     const response = await api.get<ScanAnalytics>(`/qrcodes/${id}/analytics`)
-    // Update the scan_count in the local array
     const qr = qrCodes.value.find((q) => q.id === id)
     if (qr && response.data.total_scans !== undefined) {
       qr.scan_count = response.data.total_scans
@@ -114,6 +117,26 @@ export async function saveQRCode(data: {
   value: string
   wifiEncryption?: string
   wifiPassword?: string
+  emailSubject?: string
+  emailBody?: string
+  smsMessage?: string
+  pdfUrl?: string
+  eventTitle?: string
+  eventStartDate?: string
+  eventStartTime?: string
+  eventEndDate?: string
+  eventEndTime?: string
+  eventLocation?: string
+  eventDescription?: string
+  eventUrl?: string
+  vcardFirstName?: string
+  vcardLastName?: string
+  vcardPhone?: string
+  vcardEmail?: string
+  vcardCompany?: string
+  vcardJobTitle?: string
+  vcardAddress?: string
+  vcardWebsite?: string
 }): Promise<QRCodeApiResponse> {
   try {
     const response = await api.post<QRCodeApiResponse>('/qrcodes', data)
@@ -132,6 +155,26 @@ export async function updateQRCode(
     type?: string
     wifiEncryption?: string
     wifiPassword?: string
+    emailSubject?: string
+    emailBody?: string
+    smsMessage?: string
+    pdfUrl?: string
+    eventTitle?: string
+    eventStartDate?: string
+    eventStartTime?: string
+    eventEndDate?: string
+    eventEndTime?: string
+    eventLocation?: string
+    eventDescription?: string
+    eventUrl?: string
+    vcardFirstName?: string
+    vcardLastName?: string
+    vcardPhone?: string
+    vcardEmail?: string
+    vcardCompany?: string
+    vcardJobTitle?: string
+    vcardAddress?: string
+    vcardWebsite?: string
   },
 ): Promise<QRCodeApiResponse> {
   try {
@@ -143,6 +186,7 @@ export async function updateQRCode(
         if (updates.name !== undefined) qr.name = updates.name
         if (updates.value !== undefined) qr.value = updates.value
         if (updates.type !== undefined) qr.type = updates.type
+        // metadata will be refreshed by loadQRCodes later
       }
     }
     return response.data

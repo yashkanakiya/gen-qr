@@ -60,6 +60,9 @@ const qrTypesMap: Record<string, { label: string; icon: string; color: string }>
   sms: { label: 'SMS', icon: 'pi pi-comment', color: 'orange' },
   wifi: { label: 'WiFi', icon: 'pi pi-wifi', color: 'indigo' },
   location: { label: 'Location', icon: 'pi pi-map-marker', color: 'red' },
+  pdf: { label: 'PDF', icon: 'pi pi-file-pdf', color: 'red' },
+  event: { label: 'Event', icon: 'pi pi-calendar', color: 'blue' },
+  vcard: { label: 'vCard', icon: 'pi pi-id-card', color: 'green' },
 }
 
 // ----- Helpers (all logic is here, template is clean) -----
