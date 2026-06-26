@@ -48,6 +48,11 @@ function handleLogout() {
   router.push('/login')
 }
 
+function openProfileDialog() {
+  profileDialogVisible.value = true
+  closeMobileMenu()
+}
+
 // 🔧 Safe initials generator
 const getInitials = (name: string): string => {
   if (!name) return '?'
@@ -69,10 +74,6 @@ const avatarInitials = computed(() => {
   const user = currentUser.value
   const name = user?.username || user?.email || 'User'
   return getInitials(name)
-})
-
-const isLegalPage = computed(() => {
-  return ['/terms', '/privacy'].includes(router.currentRoute.value.path)
 })
 
 const toggleMenu = (event: Event) => {
@@ -136,38 +137,6 @@ const toggleMenu = (event: Event) => {
             Contact
           </router-link>
 
-          <!-- More dropdown -->
-          <div class="relative group">
-            <button
-              class="px-3 py-2 rounded-lg transition-all duration-200 flex items-center"
-              :class="
-                isLegalPage
-                  ? 'bg-linear-to-r from-blue-500 to-indigo-500 text-white shadow-md'
-                  : 'text-gray-600 hover:bg-gray-100'
-              "
-            >
-              More <i class="pi pi-chevron-down ml-1 text-xs"></i>
-            </button>
-            <div
-              class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50"
-            >
-              <router-link
-                to="/terms"
-                class="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-                :class="$route.path === '/terms' ? 'bg-blue-50 text-blue-700' : ''"
-              >
-                Terms
-              </router-link>
-              <router-link
-                to="/privacy"
-                class="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-                :class="$route.path === '/privacy' ? 'bg-blue-50 text-blue-700' : ''"
-              >
-                Privacy
-              </router-link>
-            </div>
-          </div>
-
           <!-- Auth links -->
           <template v-if="isAuthenticated">
             <router-link
@@ -193,7 +162,7 @@ const toggleMenu = (event: Event) => {
               <i class="pi pi-plus mr-2"></i> Create QR
             </router-link>
 
-            <!-- 🔽 NEW: Avatar / Settings Dropdown -->
+            <!-- Avatar / Settings Dropdown -->
             <Button
               class="!p-0 !border-0 !bg-transparent !shadow-none hover:!bg-transparent"
               @click="toggleMenu"
@@ -291,30 +260,6 @@ const toggleMenu = (event: Event) => {
             >
               <i class="pi pi-envelope mr-3"></i> Contact
             </router-link>
-            <router-link
-              to="/terms"
-              @click="closeMobileMenu"
-              class="px-4 py-3 rounded-lg transition-all duration-200"
-              :class="
-                $route.path === '/terms'
-                  ? 'bg-linear-to-r from-blue-500 to-indigo-500 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              "
-            >
-              <i class="pi pi-file mr-3"></i> Terms
-            </router-link>
-            <router-link
-              to="/privacy"
-              @click="closeMobileMenu"
-              class="px-4 py-3 rounded-lg transition-all duration-200"
-              :class="
-                $route.path === '/privacy'
-                  ? 'bg-linear-to-r from-blue-500 to-indigo-500 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              "
-            >
-              <i class="pi pi-lock mr-3"></i> Privacy
-            </router-link>
             <hr class="border-gray-200" />
 
             <!-- Auth links -->
@@ -343,7 +288,16 @@ const toggleMenu = (event: Event) => {
               >
                 <i class="pi pi-plus mr-3"></i> Create QR
               </router-link>
-              <!-- Mobile logout – we keep a separate button for mobile (optional) -->
+
+              <!-- Profile (mobile) -->
+              <button
+                @click="openProfileDialog"
+                class="px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 text-left transition-all duration-200"
+              >
+                <i class="pi pi-user mr-3"></i> Profile
+              </button>
+
+              <!-- Logout (mobile) -->
               <button
                 @click="handleLogout"
                 class="px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 text-left"
