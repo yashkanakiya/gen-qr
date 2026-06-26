@@ -1,6 +1,6 @@
 <!-- views/CreateQR.vue -->
 <script lang="ts" setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { saveQRCode } from '../stores/qrStore'
@@ -74,12 +74,16 @@ const wifiEncryptionOptions = [
   { label: 'None (Open Network)', value: 'nopass' },
 ]
 
-// Size options with clear labels and pixel dimensions
 const sizeOptions = [
   { label: 'Small', value: 200, dimensions: '200×200' },
   { label: 'Medium', value: 500, dimensions: '500×500' },
   { label: 'Large', value: 1000, dimensions: '1000×1000' },
 ]
+
+// Tab scroll refs
+const tabContainer = ref<HTMLElement | null>(null)
+const showLeftScroll = ref(false)
+const showRightScroll = ref(false)
 
 const getCurrentValue = (): string => {
   switch (form.type) {
@@ -220,7 +224,7 @@ const isFormValid = computed<boolean>(() => {
   )
 })
 
-// Reset qrGenerated flag when any input changes
+// Watch for input changes to reset QR and update preview
 watch(
   [
     () => form.name,
@@ -246,6 +250,44 @@ watch(
   },
   { deep: true },
 )
+
+// Tab scroll logic
+const updateScrollButtons = () => {
+  const el = tabContainer.value
+  if (!el) {
+    showLeftScroll.value = false
+    showRightScroll.value = false
+    return
+  }
+  const threshold = 10
+  showLeftScroll.value = el.scrollLeft > threshold
+  showRightScroll.value = el.scrollLeft + el.clientWidth < el.scrollWidth - threshold
+}
+
+const scrollTabs = (direction: 'left' | 'right') => {
+  const el = tabContainer.value
+  if (!el) return
+  const scrollAmount = 200
+  el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' })
+  setTimeout(updateScrollButtons, 300)
+}
+
+watch([() => activeTab.value, () => form.type], () => {
+  nextTick(updateScrollButtons)
+})
+
+const handleResize = () => {
+  updateScrollButtons()
+}
+
+onMounted(() => {
+  nextTick(updateScrollButtons)
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
 
 async function generateQR(): Promise<void> {
   if (!validateName() || !validateFormValue()) {
@@ -289,14 +331,13 @@ async function generateQR(): Promise<void> {
 async function saveToDashboard(): Promise<void> {
   if (!isFormValid.value) return
 
-  isSavingToDashboard.value = true // disable Button
+  isSavingToDashboard.value = true
   try {
     const saveData: any = {
       name: form.name.trim(),
       type: form.type,
       value: getCurrentValue(),
     }
-    // Add type‑specific extra fields
     if (form.type === 'wifi') {
       saveData.wifiEncryption = form.wifiEncryption
       saveData.wifiPassword = form.wifiPassword
@@ -314,12 +355,10 @@ async function saveToDashboard(): Promise<void> {
       detail: 'QR code saved to dashboard',
       life: 3000,
     })
-    // Keep Button disabled during redirect delay
     setTimeout(() => {
       router.push('/dashboard')
     }, 1500)
   } catch (error) {
-    // Re‑enable Button only on error
     isSavingToDashboard.value = false
     toast.add({
       severity: 'error',
@@ -407,7 +446,7 @@ function setType(type: string): void {
 </script>
 
 <template>
-  <div class="flex items-center justify-center min-h-screen">
+  <div class="flex items-center justify-center min-h-screen select-none">
     <div class="max-w-2xl mx-auto w-full px-4">
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
         <div class="text-center mb-6">
@@ -431,26 +470,51 @@ function setType(type: string): void {
           <p class="text-gray-600 mt-2">Generate and customize your QR code</p>
         </div>
 
-        <!-- QR Type Tabs -->
-        <div class="mb-6">
-          <label class="block text-sm font-semibold text-gray-700 mb-3">QR Type</label>
-          <div class="grid grid-cols-4 gap-2">
-            <Button
-              v-for="type in QR_TYPES"
-              :key="type.value"
-              severity="secondary"
-              variant="outlined"
-              @click="setType(type.value)"
-              class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all cursor-pointer"
-              :class="
-                activeTab === type.value
-                  ? 'bg-blue-50 text-blue-600 border-2 border-blue-500'
-                  : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
-              "
+        <!-- QR Type Tabs (scrollable) - no label -->
+        <div class="mb-6 relative">
+          <div class="relative flex items-center">
+            <!-- Left scroll arrow -->
+            <button
+              v-if="showLeftScroll"
+              @click="scrollTabs('left')"
+              class="absolute left-0 top z-10 flex items-center cursor-pointer justify-center w-7 h-7 bg-transparent rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors -translate-y-1/2 top-9"
+              style="transform: translateY(-50%)"
             >
-              <i :class="type.icon" class="text-lg"></i>
-              <span class="text-xs">{{ type.label }}</span>
-            </Button>
+              <i class="pi pi-chevron-left text-xs text-gray-600"></i>
+            </button>
+
+            <!-- Tabs wrapper -->
+            <div
+              ref="tabContainer"
+              class="flex overflow-x-auto scroll-smooth no-scrollbar gap-2 px-2 py-1 mx-7"
+              style="scrollbar-width: none; -ms-overflow-style: none"
+              @scroll="updateScrollButtons"
+            >
+              <div
+                v-for="type in QR_TYPES"
+                :key="type.value"
+                @click="setType(type.value)"
+                class="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-all whitespace-nowrap"
+                :class="
+                  activeTab === type.value
+                    ? 'bg-blue-50 text-blue-600 border-blue-500 shadow-sm'
+                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                "
+              >
+                <i :class="type.icon" class="text-base"></i>
+                <span class="text-sm font-medium">{{ type.label }}</span>
+              </div>
+            </div>
+
+            <!-- Right scroll arrow -->
+            <button
+              v-if="showRightScroll"
+              @click="scrollTabs('right')"
+              class="absolute right-0 z-10 flex cursor-pointer items-center justify-center w-7 h-7 bg-transparent rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors -translate-y-1/2 top-9"
+              style="transform: translateY(-50%)"
+            >
+              <i class="pi pi-chevron-right text-xs text-gray-600"></i>
+            </button>
           </div>
         </div>
 
@@ -701,17 +765,27 @@ function setType(type: string): void {
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">QR Code Size</label>
             <div class="grid grid-cols-3 gap-3">
-              <Button
+              <div
                 v-for="size in sizeOptions"
-                severity="secondary"
-                variant="outlined"
                 :key="size.value"
                 @click="selectedSize = size.value"
-                class="flex flex-col items-center px-4 py-2 rounded-lg border-2 transition-all"
+                class="relative flex flex-col items-center px-4 py-2 rounded-lg border-2 transition-all cursor-pointer"
+                :class="
+                  selectedSize === size.value
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                "
               >
-                <span>{{ size.label }}</span>
+                <span class="font-medium">{{ size.label }}</span>
                 <span class="text-xs text-gray-500 mt-0.5">{{ size.dimensions }}</span>
-              </Button>
+                <!-- Small checkmark in top-right corner -->
+                <div
+                  v-if="selectedSize === size.value"
+                  class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm border border-white"
+                >
+                  <i class="pi pi-check text-white text-[10px]"></i>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -855,3 +929,13 @@ function setType(type: string): void {
     </div>
   </div>
 </template>
+
+<style scoped>
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

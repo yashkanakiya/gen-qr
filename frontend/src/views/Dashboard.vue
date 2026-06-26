@@ -501,7 +501,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen select-none">
     <div class="max-w-6xl mx-auto px-4 sm:px-6">
       <!-- Header -->
       <div class="mb-6 sm:mb-8">

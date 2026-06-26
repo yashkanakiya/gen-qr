@@ -1,6 +1,6 @@
 <!-- views/EditQR.vue -->
 <script lang="ts" setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { getQRCodeById, updateQRCode, loadQRCodes, type QRCodeItem } from '../stores/qrStore'
@@ -72,6 +72,11 @@ const wifiEncryptionOptions = [
   { label: 'WEP', value: 'WEP' },
   { label: 'None (Open Network)', value: 'nopass' },
 ]
+
+// Tab scroll refs
+const tabContainer = ref<HTMLElement | null>(null)
+const showLeftScroll = ref(false)
+const showRightScroll = ref(false)
 
 const getCurrentValue = (): string => {
   switch (form.type) {
@@ -157,11 +162,9 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
       break
     }
     case 'phone':
-      // Remove all leading "tel:" prefixes
       form.phoneNumber = qr.value.replace(/^(tel:)+/, '')
       break
     case 'sms': {
-      // Remove all leading "smsto:" prefixes
       const clean = qr.value.replace(/^(smsto:)+/, '')
       const smsParts = clean.split(':')
       form.smsNumber = smsParts[0] ?? ''
@@ -172,7 +175,6 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
       let ssid = ''
       let password = ''
 
-      // Extract SSID – find the last S: that does NOT contain "WIFI:"
       const ssidMatches = qr.value.match(/S:([^;]+)/g)
       if (ssidMatches) {
         for (let i = ssidMatches.length - 1; i >= 0; i--) {
@@ -185,7 +187,6 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
             }
           }
         }
-        // Fallback: strip "WIFI:" from the first match if none clean
         if (!ssid && ssidMatches.length > 0) {
           const firstMatch = ssidMatches[0]
           if (firstMatch) {
@@ -194,7 +195,6 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
         }
       }
 
-      // 🔥 FIX: Encryption type – if no T: present, it's an open network (nopass)
       const encMatch = qr.value.match(/T:([^;]+)/)
       if (encMatch && encMatch[1]) {
         form.wifiEncryption = encMatch[1]
@@ -202,7 +202,6 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
         form.wifiEncryption = 'nopass'
       }
 
-      // Extract password – same logic as SSID
       const passMatches = qr.value.match(/P:([^;]+)/g)
       if (passMatches) {
         for (let i = passMatches.length - 1; i >= 0; i--) {
@@ -225,8 +224,6 @@ const setFormValueFromQR = (qr: QRCodeItem) => {
 
       form.wifiSSID = ssid
       form.wifiPassword = password
-
-      // 🧹 Ensure password is empty for open networks
       if (form.wifiEncryption === 'nopass') {
         form.wifiPassword = ''
       }
@@ -359,6 +356,35 @@ watch(
   { deep: true },
 )
 
+// Tab scroll logic
+const updateScrollButtons = () => {
+  const el = tabContainer.value
+  if (!el) {
+    showLeftScroll.value = false
+    showRightScroll.value = false
+    return
+  }
+  const threshold = 10
+  showLeftScroll.value = el.scrollLeft > threshold
+  showRightScroll.value = el.scrollLeft + el.clientWidth < el.scrollWidth - threshold
+}
+
+const scrollTabs = (direction: 'left' | 'right') => {
+  const el = tabContainer.value
+  if (!el) return
+  const scrollAmount = 200
+  el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' })
+  setTimeout(updateScrollButtons, 300)
+}
+
+watch([() => activeTab.value, () => form.type], () => {
+  nextTick(updateScrollButtons)
+})
+
+const handleResize = () => {
+  updateScrollButtons()
+}
+
 async function loadQRData() {
   isLoading.value = true
   try {
@@ -455,12 +481,17 @@ function setType(type: string) {
 
 onMounted(() => {
   loadQRData()
+  nextTick(updateScrollButtons)
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
 <template>
-  <!-- Template remains unchanged -->
-  <div class="flex items-center justify-center min-h-screen">
+  <div class="flex items-center justify-center min-h-screen select-none">
     <div class="max-w-2xl mx-auto w-full px-4">
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
         <!-- Header -->
@@ -539,26 +570,51 @@ onMounted(() => {
             <p class="text-xs text-gray-500 text-center mt-2">QR code image will remain the same</p>
           </div>
 
-          <!-- QR Type Tabs -->
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-3">QR Type</label>
-            <div class="grid grid-cols-4 gap-2">
-              <Button
-                severity="secondary"
-                variant="outlined"
-                v-for="type in QR_TYPES"
-                :key="type.value"
-                @click="setType(type.value)"
-                class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all cursor-pointer"
-                :class="
-                  activeTab === type.value
-                    ? 'bg-blue-50 text-blue-600 border-2 border-blue-500'
-                    : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
-                "
+          <!-- QR Type Tabs (scrollable) - no label -->
+          <div class="relative">
+            <div class="relative flex items-center">
+              <!-- Left scroll arrow -->
+              <button
+                v-if="showLeftScroll"
+                @click="scrollTabs('left')"
+                class="absolute left-0 z-10 flex items-center justify-center w-7 h-7 bg-transparent rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors -translate-y-1/2 top-9"
+                style="transform: translateY(-50%)"
               >
-                <i :class="type.icon" class="text-lg"></i>
-                <span class="text-xs">{{ type.label }}</span>
-              </Button>
+                <i class="pi pi-chevron-left text-xs text-gray-600"></i>
+              </button>
+
+              <!-- Tabs wrapper -->
+              <div
+                ref="tabContainer"
+                class="flex overflow-x-auto scroll-smooth no-scrollbar gap-2 px-2 py-1 mx-7"
+                style="scrollbar-width: none; -ms-overflow-style: none"
+                @scroll="updateScrollButtons"
+              >
+                <div
+                  v-for="type in QR_TYPES"
+                  :key="type.value"
+                  @click="setType(type.value)"
+                  class="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-all whitespace-nowrap"
+                  :class="
+                    activeTab === type.value
+                      ? 'bg-blue-50 text-blue-600 border-blue-500 shadow-sm'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                  "
+                >
+                  <i :class="type.icon" class="text-base"></i>
+                  <span class="text-sm font-medium">{{ type.label }}</span>
+                </div>
+              </div>
+
+              <!-- Right scroll arrow -->
+              <button
+                v-if="showRightScroll"
+                @click="scrollTabs('right')"
+                class="absolute right-0 z-10 flex items-center justify-center w-7 h-7 bg-transparent rounded-full shadow-md border border-gray-200 hover:bg-gray-50 transition-colors -translate-y-1/2 top-9"
+                style="transform: translateY(-50%)"
+              >
+                <i class="pi pi-chevron-right text-xs text-gray-600"></i>
+              </button>
             </div>
           </div>
 
@@ -838,3 +894,13 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

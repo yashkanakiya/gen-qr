@@ -111,7 +111,7 @@ function closeDialog() {
     header="User Profile"
     :modal="true"
     :closable="true"
-    class="w-full max-w-md"
+    class="w-full max-w-md select-none"
   >
     <div class="flex flex-col items-center gap-6 p-4">
       <!-- Avatar -->
