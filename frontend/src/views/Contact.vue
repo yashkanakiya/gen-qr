@@ -64,15 +64,3 @@ function handleSubmit() {
   Object.assign(form, { name: '', email: '', message: '' })
 }
 </script>
-
-<style scoped>
-/* Override PrimeVue focus ring to match your blue/indigo theme */
-:deep(.p-inputtext:focus),
-:deep(.p-textarea:focus) {
-  box-shadow: 0 0 0 2px #3b82f6 !important; /* blue-500 */
-  border-color: #3b82f6 !important;
-}
-:deep(.p-button:focus) {
-  box-shadow: 0 0 0 2px #3b82f6 !important;
-}
-</style>
