@@ -224,11 +224,26 @@ N:${lastName};${firstName};;;`
  */
 function combineDateTime(dateStr: string, timeStr: string): string {
   if (!dateStr || !timeStr) return ''
-  // dateStr: "YYYY-MM-DD", timeStr: "HH:mm" (24h)
-  const [year, month, day] = dateStr.split('-').map(Number)
-  const [hours, minutes] = timeStr.split(':').map(Number)
+
+  const dateParts = dateStr.split('-').map(Number)
+  const timeParts = timeStr.split(':').map(Number)
+
+  if (dateParts.length !== 3 || timeParts.length !== 2) return ''
+
+  // Safe destructuring with non-null assertions
+  const year = dateParts[0]!
+  const month = dateParts[1]!
+  const day = dateParts[2]!
+  const hours = timeParts[0]!
+  const minutes = timeParts[1]!
+
+  // Check all are valid numbers
+  if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) {
+    return ''
+  }
+
   const dt = new Date(Date.UTC(year, month - 1, day, hours, minutes))
-  // Format as YYYYMMDDTHHMMSSZ
+
   const pad = (n: number) => String(n).padStart(2, '0')
   return (
     dt.getUTCFullYear() +
@@ -241,7 +256,6 @@ function combineDateTime(dateStr: string, timeStr: string): string {
     'Z'
   )
 }
-
 /**
  * Validate the value for a given QR type.
  * For complex types (event, vcard), you may need to pass extraData.
@@ -284,7 +298,12 @@ export const validateQRValue = (
 
     case 'location': {
       const parts = value.split(',')
-      if (parts.length !== 2 || isNaN(parseFloat(parts[0])) || isNaN(parseFloat(parts[1]))) {
+      if (parts.length !== 2) {
+        return 'Please enter valid coordinates (latitude,longitude)'
+      }
+      const lat = parseFloat(parts[0]!)
+      const lng = parseFloat(parts[1]!)
+      if (isNaN(lat) || isNaN(lng)) {
         return 'Please enter valid coordinates (latitude,longitude)'
       }
       break

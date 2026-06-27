@@ -479,6 +479,8 @@ const handlePdfUpload = async (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files || input.files.length === 0) return
   const file = input.files[0]
+  if (!file) return // 👈 Guard against undefined
+
   if (file.type !== 'application/pdf') {
     toast.add({
       severity: 'error',
@@ -492,7 +494,7 @@ const handlePdfUpload = async (event: Event) => {
 
   isUploadingPdf.value = true
   const formData = new FormData()
-  formData.append('pdf', file)
+  formData.append('pdf', file) // Now safe
 
   try {
     const response = await api.post('/upload', formData, {
