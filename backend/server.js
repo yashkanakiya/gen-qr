@@ -20,22 +20,24 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CORS
+// app.use(
+//   cors({
+//     origin: "http://localhost:5173",
+//     credentials: true,
+//   }),
+// );
+// Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "https://gen-qr-five.vercel.app",
+      process.env.FRONTEND_URL,
+    ].filter(Boolean),
     credentials: true,
   }),
 );
-// Middleware
-// app.use(cors({
-//   origin: [
-//       'http://localhost:5173',
-//       'http://localhost:3000',
-//       'https://gen-qr-five.vercel.app',
-//     process.env.FRONTEND_URL
-//   ].filter(Boolean),
-//   credentials: true
-// }));
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
