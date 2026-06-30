@@ -61,6 +61,12 @@ const router = createRouter({
       component: () => import('../views/Signup.vue'),
       meta: { requiresAuth: false },
     },
+    {
+      path: '/verify-email',
+      name: 'verifyEmail',
+      component: () => import('../views/VerifyEmail.vue'),
+      meta: { requiresAuth: false },
+    },
     // Protected pages
     {
       path: '/dashboard',

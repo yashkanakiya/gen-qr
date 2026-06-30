@@ -40,6 +40,7 @@ const initDatabase = async () => {
       email TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       avatar TEXT,
+      verified BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;
@@ -118,6 +119,14 @@ const dbOperations = {
       `INSERT INTO users (username, email, password, avatar) 
      VALUES ($1, $2, $3, $4) RETURNING id, username, email, avatar, created_at`,
       [username, email, password, avatar],
+    );
+    return result.rows[0];
+  },
+
+  updateUserVerified: async (userId) => {
+    const result = await pool.query(
+      `UPDATE users SET verified = TRUE WHERE id = $1 RETURNING id, username, email, avatar, verified`,
+      [userId],
     );
     return result.rows[0];
   },

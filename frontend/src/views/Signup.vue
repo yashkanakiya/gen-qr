@@ -275,14 +275,19 @@ async function handleSignup() {
   isLoading.value = true
 
   try {
-    await signup(form)
+    // signup now returns { user } (no token)
+    const result = await signup(form)
+    const user = result.user
+
     toast.add({
       severity: 'success',
-      summary: 'Success',
-      detail: 'Account created successfully!',
-      life: 3000,
+      summary: 'Account Created',
+      detail: 'Please verify your email to continue.',
+      life: 4000,
     })
-    router.push('/dashboard')
+
+    // Redirect to verify page with user id
+    router.push({ path: '/verify-email', query: { userId: user.id.toString() } })
   } catch (error: any) {
     let errorMessage = 'Failed to create account'
 

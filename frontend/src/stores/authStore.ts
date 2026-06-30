@@ -128,11 +128,20 @@ export async function login(data: LoginData): Promise<void> {
 }
 
 // Signup
-export async function signup(data: SignupData): Promise<void> {
+export async function signup(data: SignupData): Promise<{ user: User }> {
+  try {
+    const response = await api.post<{ user: User }>('/auth/signup', data)
+    return { user: response.data.user }
+  } catch (error) {
+    throw error
+  }
+}
+
+export async function verifyUser(userId: string): Promise<void> {
   try {
     const response = await api.post<{ token: string; user: User & { avatar?: string } }>(
-      '/auth/signup',
-      data,
+      '/auth/verify',
+      { userId },
     )
     const { token, user } = response.data
 
@@ -145,7 +154,7 @@ export async function signup(data: SignupData): Promise<void> {
       setProfileImage(null)
     }
   } catch (error) {
-    // Re-throw the error so it can be handled in the component
+    // Re-throw to be handled in component
     throw error
   }
 }
