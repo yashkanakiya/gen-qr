@@ -18,42 +18,37 @@
           <!-- Email Field -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2"> Email Address </label>
-            <div class="relative">
-              <i
-                class="pi pi-envelope absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"
-              ></i>
-              <input
-                v-model="form.email"
-                type="email"
-                required
-                class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="name@example.com"
-              />
-            </div>
+            <InputText
+              v-model="form.email"
+              type="email"
+              required
+              class="w-full"
+              :class="{ 'p-invalid': errors.email }"
+              placeholder="name@example.com"
+              @input="errors.email = ''"
+              @blur="validateField('email')"
+            />
+            <span v-if="errors.email" class="text-red-500 text-sm mt-1 block">{{
+              errors.email
+            }}</span>
           </div>
 
           <!-- Password Field -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2"> Password </label>
-            <div class="relative">
-              <i
-                class="pi pi-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"
-              ></i>
-              <input
-                v-model="form.password"
-                :type="showPassword ? 'text' : 'password'"
-                required
-                class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your password"
-              />
-              <button
-                type="button"
-                @click="showPassword = !showPassword"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
-              </button>
-            </div>
+            <Password
+              v-model="form.password"
+              toggleMask
+              fluid
+              required
+              placeholder="Enter your password"
+              :class="{ 'p-invalid': errors.password }"
+              @input="errors.password = ''"
+              @blur="validateField('password')"
+            />
+            <span v-if="errors.password" class="text-red-500 text-sm mt-1 block">{{
+              errors.password
+            }}</span>
           </div>
 
           <!-- Remember Me & Forgot Password -->
@@ -70,14 +65,14 @@
           </div>
 
           <!-- Login Button -->
-          <button
+          <Button
             type="submit"
+            :loading="isLoading"
             :disabled="isLoading"
-            class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <i v-if="isLoading" class="pi pi-spin pi-spinner mr-2"></i>
-            {{ isLoading ? 'Logging in...' : 'Log In' }}
-          </button>
+            label="Log In"
+            class="w-full justify-center"
+            severity="primary"
+          />
 
           <!-- Divider -->
           <div class="relative">
@@ -89,22 +84,24 @@
             </div>
           </div>
 
-          <!-- Social Login -->
+          <!-- Social Login (disabled) -->
           <div class="grid grid-cols-2 gap-3">
-            <button
+            <Button
               type="button"
-              class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <i class="pi pi-google mr-2"></i>
-              Google
-            </button>
-            <button
+              label="Google"
+              icon="pi pi-google"
+              class="w-full justify-center"
+              severity="secondary"
+              disabled
+            />
+            <Button
               type="button"
-              class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <i class="pi pi-github mr-2"></i>
-              GitHub
-            </button>
+              label="GitHub"
+              icon="pi pi-github"
+              class="w-full justify-center"
+              severity="secondary"
+              disabled
+            />
           </div>
         </form>
       </div>
@@ -128,28 +125,67 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { login } from '../stores/authStore'
 import axios from 'axios'
+import InputText from 'primevue/inputtext'
+import Password from 'primevue/password'
+import Button from 'primevue/button'
 
 const router = useRouter()
 const toast = useToast()
 const isLoading = ref(false)
 const rememberMe = ref(false)
-const showPassword = ref(false)
 
 const form = reactive({
   email: '',
   password: '',
 })
 
-async function handleLogin() {
-  if (!form.email || !form.password) {
-    toast.add({
-      severity: 'error',
-      summary: 'Validation Error',
-      detail: 'Please fill in all fields',
-      life: 4000,
-    })
-    return
+const errors = reactive({
+  email: '',
+  password: '',
+})
+
+const isValidEmail = (email: string) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function validateField(field: 'email' | 'password') {
+  errors[field] = ''
+  if (field === 'email') {
+    if (!form.email) {
+      errors.email = 'Email is required'
+    } else if (!isValidEmail(form.email)) {
+      errors.email = 'Please enter a valid email address'
+    }
+  } else if (field === 'password') {
+    if (!form.password) {
+      errors.password = 'Password is required'
+    }
   }
+}
+
+function validateForm(): boolean {
+  let valid = true
+  errors.email = ''
+  errors.password = ''
+
+  if (!form.email) {
+    errors.email = 'Email is required'
+    valid = false
+  } else if (!isValidEmail(form.email)) {
+    errors.email = 'Please enter a valid email address'
+    valid = false
+  }
+
+  if (!form.password) {
+    errors.password = 'Password is required'
+    valid = false
+  }
+
+  return valid
+}
+
+async function handleLogin() {
+  if (!validateForm()) return
 
   isLoading.value = true
 
@@ -163,11 +199,9 @@ async function handleLogin() {
     })
     router.push('/dashboard')
   } catch (error: any) {
-    // Properly extract error message from backend
     let errorMessage = 'Invalid email or password'
 
     if (axios.isAxiosError(error)) {
-      // Handle axios error
       if (error.response?.data?.error) {
         errorMessage = error.response.data.error
       } else if (error.response?.data?.message) {

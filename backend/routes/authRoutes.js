@@ -58,6 +58,7 @@ router.post("/signup", async (req, res) => {
         id: newUser.id,
         username: newUser.username,
         email: newUser.email,
+        verified: false,
       },
     });
   } catch (error) {
@@ -88,6 +89,12 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
+    if (!user.verified) {
+      return res
+        .status(403)
+        .json({ error: "Please verify your email before logging in" });
+    }
+
     // Generate token
     const token = generateToken(user.id);
 
@@ -104,6 +111,36 @@ router.post("/login", async (req, res) => {
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ error: "Failed to login" });
+  }
+});
+
+router.post("/verify", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: "User ID is required" });
+
+    const user = await dbOperations.getUserById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Mark as verified
+    const updatedUser = await dbOperations.updateUserVerified(userId);
+    if (!updatedUser)
+      return res.status(500).json({ error: "Failed to verify user" });
+
+    // Generate token
+    const token = generateToken(updatedUser.id);
+    res.json({
+      message: "Email verified successfully",
+      token,
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar || null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to verify email" });
   }
 });
 
