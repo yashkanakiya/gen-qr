@@ -10,33 +10,27 @@
           <thead class="bg-gray-50 border-b border-gray-200">
             <tr>
               <th class="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Created At
+                Name
               </th>
-              <th
-                class="p-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
+              <th class="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 QR Code
               </th>
               <th class="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
+                Created At
               </th>
-              <th
-                class="p-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
+              <th class="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-for="i in rowsPerPage || 5" :key="i" class="animate-pulse">
-              <td class="p-3"><Skeleton width="5rem" height="1.5rem" /></td>
-              <td class="p-3 text-center">
-                <Skeleton shape="circle" size="2.5rem" class="mx-auto" />
-              </td>
               <td class="p-3"><Skeleton width="6rem" height="1.5rem" /></td>
-              <td class="p-3 text-center">
-                <Skeleton width="2rem" height="2rem" class="mx-auto" />
+              <td class="p-3">
+                <Skeleton shape="circle" size="2.5rem" />
               </td>
+              <td class="p-3"><Skeleton width="5rem" height="1.5rem" /></td>
+              <td class="p-3"><Skeleton width="2rem" height="2rem" /></td>
             </tr>
           </tbody>
         </table>
@@ -53,23 +47,8 @@
         tableClass="w-full min-w-[500px]"
         paginatorClass="p-4 border-t border-gray-100"
       >
-        <Column field="created_at" header="Created At" class="text-sm">
-          <template #body="{ data }">
-            <span class="text-gray-700 text-xs sm:text-sm">{{ formatDate(data.created_at) }}</span>
-          </template>
-        </Column>
-
-        <Column header="QR Code" class="text-center">
-          <template #body="{ data }">
-            <img
-              :src="data.qrSrc"
-              :alt="data.name"
-              class="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-lg bg-gray-50 p-1"
-            />
-          </template>
-        </Column>
-
-        <Column field="name" header="Name" class="text-sm">
+        <!-- Name column: large width, left aligned -->
+        <Column field="name" header="Name" style="width: 50%; min-width: 150px" class="text-sm">
           <template #body="{ data }">
             <div class="flex items-center gap-2">
               <i
@@ -84,7 +63,31 @@
           </template>
         </Column>
 
-        <Column header="Actions" class="text-center w-20">
+        <!-- QR Code column: left aligned, narrower -->
+        <Column header="QR Code" style="width: 20%; min-width: 60px" class="text-sm">
+          <template #body="{ data }">
+            <img
+              :src="data.qrSrc"
+              :alt="data.name"
+              class="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-lg bg-gray-50 p-1"
+            />
+          </template>
+        </Column>
+
+        <!-- Created At column: left aligned -->
+        <Column
+          field="created_at"
+          header="Created At"
+          style="width: 20%; min-width: 80px"
+          class="text-sm"
+        >
+          <template #body="{ data }">
+            <span class="text-gray-700 text-xs sm:text-sm">{{ formatDate(data.created_at) }}</span>
+          </template>
+        </Column>
+
+        <!-- Actions column: left aligned -->
+        <Column header="Actions" style="width: 10%; min-width: 50px" class="text-sm">
           <template #body="{ data }">
             <Button
               icon="pi pi-ellipsis-v"
@@ -116,7 +119,7 @@
       </DataTable>
     </div>
 
-    <!-- Mobile Cards -->
+    <!-- Mobile Cards (unchanged) -->
     <div class="block sm:hidden space-y-4">
       <!-- Skeleton cards -->
       <div
@@ -273,8 +276,8 @@ const props = withDefaults(
   {
     qrCodes: () => [],
     loading: false,
-    rowsPerPage: 5,
-    rowsPerPageOptions: () => [5, 10, 20],
+    rowsPerPage: 10,
+    rowsPerPageOptions: () => [10, 20],
     currentPage: 1,
     qrTypesMap: () => ({}),
     getIconColorClass: () => '',
@@ -294,11 +297,11 @@ const emit = defineEmits<{
 // Computed for mobile pagination
 const filteredQRCodes = computed(() => props.qrCodes || [])
 const totalPages = computed(() =>
-  Math.ceil(filteredQRCodes.value.length / (props.rowsPerPage || 5)),
+  Math.ceil(filteredQRCodes.value.length / (props.rowsPerPage || 10)),
 )
 const paginatedQRCodes = computed(() => {
-  const start = ((props.currentPage || 1) - 1) * (props.rowsPerPage || 5)
-  const end = start + (props.rowsPerPage || 5)
+  const start = ((props.currentPage || 1) - 1) * (props.rowsPerPage || 10)
+  const end = start + (props.rowsPerPage || 10)
   return filteredQRCodes.value.slice(start, end)
 })
 

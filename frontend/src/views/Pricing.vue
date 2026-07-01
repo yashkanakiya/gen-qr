@@ -4,7 +4,7 @@
     <p class="text-center text-gray-600 mb-12">
       Choose the plan that fits your needs. All plans include core features.
     </p>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
       <div
         v-for="plan in plans"
         :key="plan.name"
@@ -64,7 +64,7 @@ const plans = [
       'Priority support',
     ],
     cta: 'Choose Pro',
-    ctaClass: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md hover:shadow-lg',
+    ctaClass: 'bg-linear-to-r from-blue-600 to-indigo-600 text-white shadow-md hover:shadow-lg',
   },
   {
     name: 'Enterprise',

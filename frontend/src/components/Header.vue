@@ -101,7 +101,7 @@ const toggleMenu = (event: Event) => {
         </router-link>
 
         <!-- Desktop Menu -->
-        <div class="hidden md:flex items-center space-x-4">
+        <div class="hidden lg:flex items-center space-x-4">
           <!-- Public links -->
           <router-link
             to="/pricing"
@@ -203,7 +203,7 @@ const toggleMenu = (event: Event) => {
               :class="
                 $route.path === '/signup'
                   ? 'bg-linear-to-r from-blue-500 to-indigo-500 text-white shadow-md'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md hover:shadow-lg'
+                  : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white shadow-md hover:shadow-lg'
               "
             >
               Sign Up
@@ -214,7 +214,7 @@ const toggleMenu = (event: Event) => {
         <!-- Mobile Menu Button -->
         <button
           @click="toggleMobileMenu"
-          class="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-all"
+          class="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-all"
         >
           <i :class="mobileMenuOpen ? 'pi pi-times' : 'pi pi-bars'" class="text-xl"></i>
         </button>
@@ -222,7 +222,7 @@ const toggleMenu = (event: Event) => {
 
       <!-- Mobile Menu Dropdown -->
       <Transition name="slide-down">
-        <div v-if="mobileMenuOpen" class="md:hidden py-4 border-t border-gray-200">
+        <div v-if="mobileMenuOpen" class="lg:hidden py-4 border-t border-gray-200">
           <div class="flex flex-col space-y-2">
             <router-link
               to="/pricing"
@@ -325,7 +325,7 @@ const toggleMenu = (event: Event) => {
                 :class="
                   $route.path === '/signup'
                     ? 'bg-linear-to-r from-blue-500 to-indigo-500 text-white'
-                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white'
+                    : 'bg-linear-to-r from-blue-600 to-indigo-600 text-white'
                 "
               >
                 Sign Up
