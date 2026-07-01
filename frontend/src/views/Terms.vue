@@ -2,10 +2,10 @@
   <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 max-w-4xl">
     <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
       <!-- Gradient header bar -->
-      <div class="h-2 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+      <div class="h-2 bg-linear-to-r from-blue-600 to-indigo-600"></div>
       <div class="p-8 prose prose-blue max-w-none">
         <h1
-          class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
+          class="text-3xl font-bold bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
         >
           Terms of Service
         </h1>

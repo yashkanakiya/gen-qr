@@ -5,7 +5,7 @@
       <div class="text-center max-w-4xl mx-auto">
         <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight">
           Generate
-          <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600"
+          <span class="bg-clip-text text-transparent bg-linear-to-r from-blue-600 to-indigo-600"
             >Dynamic QR Codes</span
           >
           in Seconds
@@ -17,7 +17,7 @@
         <div class="mt-10 flex flex-wrap justify-center gap-4">
           <router-link
             to="/signup"
-            class="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105"
+            class="px-8 py-4 bg-linear-to-r from-blue-600 to-indigo-600 text-white text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105"
           >
             Get Started Free
           </router-link>
@@ -72,7 +72,7 @@
         <p class="text-2xl font-semibold text-gray-800">Ready to start creating?</p>
         <router-link
           to="/signup"
-          class="inline-block mt-4 px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105"
+          class="inline-block mt-4 px-8 py-3 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105"
         >
           Sign Up Now – It's Free
         </router-link>

@@ -4,16 +4,6 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import Menu from 'primevue/menu'
 import Skeleton from 'primevue/skeleton'
-import { Bar } from 'vue-chartjs'
-import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  Legend,
-  BarElement,
-  CategoryScale,
-  LinearScale,
-} from 'chart.js'
 import {
   qrCodes,
   loadQRCodes,
@@ -26,8 +16,7 @@ import {
 import DashboardStats from '../components/dashboard/DashboardStats.vue'
 import DashboardFilter from '../components/dashboard/DashboardFilter.vue'
 import DashboardTable from '../components/dashboard/DashboardTable.vue'
-
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
+import { defineAsyncComponent } from 'vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -48,8 +37,12 @@ const downloadLoading = ref(false)
 
 const searchQuery = ref('')
 const currentPage = ref(1)
-const rowsPerPage = ref(5)
-const rowsPerPageOptions = [5, 10, 20]
+const rowsPerPage = ref(10)
+const rowsPerPageOptions = [10, 20]
+
+const AnalyticsChart = defineAsyncComponent(
+  () => import('../components/dashboard/AnalyticsChart.vue'),
+)
 
 // QR type mapping
 const qrTypesMap: Record<string, { label: string; icon: string; color: string }> = {
@@ -821,9 +814,8 @@ onBeforeUnmount(() => {
             >
               <h4 class="font-semibold text-gray-700 mb-3 text-sm sm:text-base">Scans Over Time</h4>
               <div class="bg-gray-50 rounded-lg p-3 sm:p-4">
-                <div class="h-48">
-                  <Bar :data="chartData" :options="chartOptions" />
-                </div>
+                <!-- Lazy loaded chart -->
+                <AnalyticsChart :chart-data="chartData" />
               </div>
             </div>
 

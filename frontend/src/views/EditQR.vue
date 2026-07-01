@@ -479,7 +479,7 @@ const handlePdfUpload = async (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files || input.files.length === 0) return
   const file = input.files[0]
-  if (!file) return // 👈 Guard against undefined
+  if (!file) return
 
   if (file.type !== 'application/pdf') {
     toast.add({
@@ -494,7 +494,7 @@ const handlePdfUpload = async (event: Event) => {
 
   isUploadingPdf.value = true
   const formData = new FormData()
-  formData.append('pdf', file) // Now safe
+  formData.append('pdf', file)
 
   try {
     const response = await api.post('/upload', formData, {
@@ -553,6 +553,9 @@ async function loadQRData() {
     router.push('/dashboard')
   } finally {
     isLoading.value = false
+    // Wait for DOM update then refresh scroll indicators
+    await nextTick()
+    updateScrollButtons()
   }
 }
 
