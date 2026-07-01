@@ -6,7 +6,7 @@
 
 A modern, full-featured application for generating, managing, and tracking QR codes with advanced analytics, user authentication, and beautiful UI.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-gen--qr--rust.vercel.app-blue?style=for-the-badge)](https://gen-qr-rust.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-gen--qr--five.vercel.app-blue?style=for-the-badge)](https://gen-qr-five.vercel.app)
 [![Vue 3](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org)
 [![Node.js](https://img.shields.io/badge/Node.js-Express-339933?style=flat-square&logo=node.js)](https://expressjs.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org)
@@ -382,8 +382,8 @@ This project is licensed under the ISC License - see the LICENSE file for detail
 ## 💬 Support & Contact
 
 - **Issues**: [GitHub Issues](https://github.com/yashkanakiya/gen-qr/issues)
-- **Email**: yashkanakiya@example.com
-- **Website**: [gen-qr-rust.vercel.app](https://gen-qr-rust.vercel.app)
+- **Email**: yashkanakiya281297@example.com
+- **Website**: [gen-qr-five.vercel.app](https://gen-qr-five.vercel.app)
 
 ---
 
